@@ -1,0 +1,19 @@
+{
+  "name": "pulseguard-ai",
+  "version": "1.0.0",
+  "description": "PulseGuard AI - Detect business risks before they become business problems",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "generate-data": "node src/data/generate.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.17.0",
+    "openai": "^4.28.0",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
