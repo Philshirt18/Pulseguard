@@ -1,8 +1,6 @@
 /**
  * Vercel Serverless Entry Point for PulseGuard
- * 
- * This file exposes the Slack Bolt app as a Vercel serverless function.
- * Slack sends HTTP POST requests to /api/slack for commands and interactions.
+ * Slack sends HTTP POST requests here for commands and interactions.
  */
 
 require('dotenv').config();
@@ -10,12 +8,12 @@ require('dotenv').config();
 const { App, ExpressReceiver } = require('@slack/bolt');
 const { registerCommands } = require('../src/slack/commands');
 const riskDetector = require('../src/engine/riskDetector');
-const { isDemoMode } = require('../src/engine/cache');
 
-// Create a custom receiver for Vercel
+// Create receiver that listens at the root path (Vercel routes /api/slack here)
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   processBeforeResponse: true,
+  endpoints: '/api/slack',
 });
 
 const app = new App({
