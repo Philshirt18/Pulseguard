@@ -24,23 +24,30 @@ const blocks = require('./slack/blocks');
 const { isDemoMode } = require('./engine/cache');
 
 // Validate environment
-const requiredEnvVars = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET', 'SLACK_APP_TOKEN'];
+const requiredEnvVars = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET'];
 if (!isDemoMode()) requiredEnvVars.push('OPENAI_API_KEY');
 const missing = requiredEnvVars.filter(v => !process.env[v]);
 if (missing.length > 0) {
   console.error(`❌ Missing environment variables: ${missing.join(', ')}`);
   console.error('   Copy .env.example to .env and fill in your values.');
-  console.error('   Tip: Set DEMO_MODE=true to skip OpenAI requirement.');
   process.exit(1);
 }
 
-// Initialize Slack App (Socket Mode for easy demo)
-const app = new App({
+// Initialize Slack App
+// Uses Socket Mode if SLACK_APP_TOKEN is present, otherwise HTTP mode (for Vercel/serverless)
+const useSocketMode = !!process.env.SLACK_APP_TOKEN;
+
+const appConfig = {
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: true,
-  appToken: process.env.SLACK_APP_TOKEN,
-});
+};
+
+if (useSocketMode) {
+  appConfig.socketMode = true;
+  appConfig.appToken = process.env.SLACK_APP_TOKEN;
+}
+
+const app = new App(appConfig);
 
 // Register all slash commands and button handlers
 registerCommands(app);
@@ -188,27 +195,16 @@ async function sendProactiveAlert() {
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  🛡️  PulseGuard AI');
-  console.log('  "Detect business risks before they become');
-  console.log('   business problems."');
+  console.log('  The Organizational Early Warning System');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('');
-  console.log('  ✅ Connected to Slack (Socket Mode)');
+  console.log(`  ✅ Mode: ${useSocketMode ? 'Socket Mode' : 'HTTP Mode (Vercel-compatible)'}`);
   console.log('  ✅ Risk Detection Engine: ' + risks.length + ' risks detected');
-  console.log(`  ✅ AI Narrative Engine: ${isDemoMode() ? 'DEMO MODE (cached responses)' : 'Live (OpenAI)'}`);
-  console.log('  ✅ Response Caching: enabled');
-  console.log('  ✅ Interactive Buttons: enabled');
+  console.log(`  ✅ AI Narrative Engine: ${isDemoMode() ? 'DEMO MODE (cached)' : 'Live (OpenAI)'}`);
   console.log('  ✅ Monitoring: EuroStay Rentals');
   console.log('');
-  console.log('  Commands:');
-  console.log('  /executive-summary  → Executive Intelligence Brief');
-  console.log('  /risk-report        → Risk Report (all risks)');
-  console.log('  /why-risk [id]      → Root Cause Analysis');
-  console.log('  /recommend-action   → Recommended Actions');
-  console.log('  /pulse              → Quick Status');
-  console.log('');
   if (isDemoMode()) {
-    console.log('  ⚡ DEMO MODE active — using polished fallback narratives');
-    console.log('     (instant responses, zero API latency)');
+    console.log('  ⚡ DEMO MODE — instant responses, zero API latency');
     console.log('');
   }
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
