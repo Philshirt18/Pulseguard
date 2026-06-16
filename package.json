@@ -6,14 +6,20 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
+    "mcp": "node src/mcp/server.js",
     "generate-data": "node src/data/generate.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@slack/bolt": "^3.17.0",
+    "dotenv": "^16.4.1",
     "openai": "^4.28.0",
-    "dotenv": "^16.4.1"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
