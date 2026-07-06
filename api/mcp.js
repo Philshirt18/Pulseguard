@@ -1,20 +1,11 @@
 /**
- * PulseGuard MCP Server — HTTP Transport
+ * PulseGuard MCP Server — Vercel Serverless Function
  *
- * Exposes PulseGuard's risk intelligence as MCP tools over HTTP using the
- * Streamable HTTP transport (MCP spec 2025-03-26).
+ * Stateless MCP over HTTP using the Streamable HTTP transport.
+ * Each request is handled independently (no in-memory session state),
+ * which is compatible with Vercel's serverless execution model.
  *
- * Endpoint:  POST /mcp          (stateless — new session per request)
- * Endpoint:  POST /mcp          (stateful  — pass Mcp-Session-Id header)
- *            GET  /mcp          (SSE stream for server-initiated messages)
- *            DELETE /mcp        (terminate a session)
- *
- * Any MCP-compatible AI agent (Claude Desktop, Cursor, custom agents) can:
- * - Query active risks
- * - Investigate specific risks
- * - Get root cause analysis
- * - Get strategic recommendations
- * - Access forecast predictions
+ * Endpoint: POST /mcp
  */
 
 require('dotenv').config();
@@ -24,7 +15,7 @@ const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
 
-const riskDetector = require('../engine/riskDetector');
+const riskDetector = require('../src/engine/riskDetector');
 const {
   getInvestigationTimeline,
   getForecast,
@@ -36,12 +27,11 @@ const {
   getHypotheses,
   getEvidenceWeighting,
   getDecisionSupport,
-} = require('../engine/agentIntelligence');
+} = require('../src/engine/agentIntelligence');
 
 // ==========================================
 // MCP SERVER FACTORY
-// Creates a fresh McpServer instance with all tools registered.
-// Called once per session (stateful) or once per request (stateless).
+// A fresh McpServer is created per request (stateless mode).
 // ==========================================
 
 function createMcpServer() {
@@ -288,118 +278,38 @@ function createMcpServer() {
 }
 
 // ==========================================
-// EXPRESS APP
+// EXPRESS APP (exported for Vercel)
 // ==========================================
 
 const app = express();
 app.use(express.json());
 
-// Session store for stateful connections (sessionId → transport)
-const sessions = new Map();
+app.all('*', async (req, res) => {
+  if (req.method === 'GET' && req.path === '/health') {
+    res.json({ status: 'ok', service: 'pulseguard-mcp' });
+    return;
+  }
 
-// ──────────────────────────────────────────
-// POST /mcp  — initiate or continue a session
-// GET  /mcp  — open SSE stream (stateful sessions)
-// DELETE /mcp — terminate a session
-// ──────────────────────────────────────────
-app.all('/mcp', async (req, res) => {
-  const sessionId = req.headers['mcp-session-id'];
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
 
   try {
-    if (req.method === 'POST') {
-      // ── Existing stateful session ──────────
-      if (sessionId && sessions.has(sessionId)) {
-        const { transport } = sessions.get(sessionId);
-        await transport.handleRequest(req, res, req.body);
-        return;
-      }
+    // Stateless: new transport + server per request (no session state)
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless — no session ID issued
+    });
 
-      // ── New session (or stateless request) ─
-      const isInitialize =
-        req.body?.method === 'initialize' || Array.isArray(req.body);
-
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: isInitialize ? () => require('crypto').randomUUID() : undefined,
-        onsessioninitialized: (id) => {
-          sessions.set(id, { transport, server: mcpServer });
-          console.log(`  🔗 MCP session opened: ${id}`);
-        },
-      });
-
-      const mcpServer = createMcpServer();
-
-      // Clean up session on close
-      transport.onclose = () => {
-        if (transport.sessionId) {
-          sessions.delete(transport.sessionId);
-          console.log(`  🔌 MCP session closed: ${transport.sessionId}`);
-        }
-      };
-
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-      return;
-    }
-
-    if (req.method === 'GET') {
-      // SSE stream — requires an active session
-      if (!sessionId || !sessions.has(sessionId)) {
-        res.status(400).json({ error: 'Missing or unknown Mcp-Session-Id' });
-        return;
-      }
-      const { transport } = sessions.get(sessionId);
-      await transport.handleRequest(req, res);
-      return;
-    }
-
-    if (req.method === 'DELETE') {
-      if (!sessionId || !sessions.has(sessionId)) {
-        res.status(404).json({ error: 'Session not found' });
-        return;
-      }
-      const { transport } = sessions.get(sessionId);
-      await transport.handleRequest(req, res);
-      sessions.delete(sessionId);
-      console.log(`  🗑️  MCP session deleted: ${sessionId}`);
-      return;
-    }
-
-    res.status(405).json({ error: 'Method not allowed' });
+    const mcpServer = createMcpServer();
+    await mcpServer.connect(transport);
+    await transport.handleRequest(req, res, req.body);
   } catch (err) {
-    console.error('MCP request error:', err);
+    console.error('MCP error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
 });
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'pulseguard-mcp', sessions: sessions.size });
-});
-
-// ==========================================
-// START
-// ==========================================
-
-const PORT = process.env.MCP_PORT || 3001;
-
-app.listen(PORT, () => {
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  🛡️  PulseGuard MCP Server (HTTP)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log(`  ✅ Listening on http://localhost:${PORT}`);
-  console.log(`  ✅ MCP endpoint: http://localhost:${PORT}/mcp`);
-  console.log(`  ✅ Health check: http://localhost:${PORT}/health`);
-  console.log('');
-  console.log('  Tools available:');
-  console.log('    • get_executive_summary');
-  console.log('    • list_risks');
-  console.log('    • investigate_risk');
-  console.log('    • get_recommendations');
-  console.log('    • get_forecast');
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-});
+module.exports = app;

@@ -4,9 +4,17 @@
     {
       "src": "api/slack.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/mcp.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/mcp(.*)",
+      "dest": "/api/mcp.js"
+    },
     {
       "src": "/(.*)",
       "dest": "/api/slack.js"

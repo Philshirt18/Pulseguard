@@ -7,6 +7,7 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "mcp": "node src/mcp/server.js",
+    "mcp:dev": "nodemon src/mcp/server.js",
     "generate-data": "node src/data/generate.js"
   },
   "dependencies": {
