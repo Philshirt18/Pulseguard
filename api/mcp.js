@@ -10,7 +10,6 @@
 
 require('dotenv').config();
 
-const express = require('express');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
@@ -278,34 +277,54 @@ function createMcpServer() {
 }
 
 // ==========================================
-// EXPRESS APP (exported for Vercel)
+// REQUEST HANDLER (exported for Vercel)
+// Plain Node.js handler — no Express, no path-to-regexp.
 // ==========================================
 
-const app = express();
-app.use(express.json());
-
-// Health check
-app.get('/', (_req, res) => {
-  res.json({ status: 'ok', service: 'pulseguard-mcp' });
-});
-
-// MCP endpoint
-app.post('/', async (req, res) => {
-  try {
-    // Stateless: new transport + server per request (no session state)
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless — no session ID issued
+async function handler(req, res) {
+  // Parse JSON body manually (Vercel does not pre-parse it)
+  async function readBody() {
+    return new Promise((resolve, reject) => {
+      let data = '';
+      req.on('data', (chunk) => { data += chunk; });
+      req.on('end', () => {
+        try { resolve(data ? JSON.parse(data) : undefined); }
+        catch { resolve(undefined); }
+      });
+      req.on('error', reject);
     });
+  }
 
+  // Health check
+  if (req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'pulseguard-mcp' }));
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    return;
+  }
+
+  // Attach parsed body to req so StreamableHTTPServerTransport can use it
+  req.body = await readBody();
+
+  try {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless
+    });
     const mcpServer = createMcpServer();
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {
     console.error('MCP error:', err);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
     }
   }
-});
+}
 
-module.exports = app;
+module.exports = handler;
