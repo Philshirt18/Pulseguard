@@ -285,7 +285,8 @@ const app = express();
 app.use(express.json());
 
 app.all('*', async (req, res) => {
-  if (req.method === 'GET' && req.path === '/health') {
+  // Health check — works at GET /mcp or GET /mcp/health
+  if (req.method === 'GET') {
     res.json({ status: 'ok', service: 'pulseguard-mcp' });
     return;
   }
