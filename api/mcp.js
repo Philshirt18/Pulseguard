@@ -284,18 +284,13 @@ function createMcpServer() {
 const app = express();
 app.use(express.json());
 
-app.all('*', async (req, res) => {
-  // Health check — works at GET /mcp or GET /mcp/health
-  if (req.method === 'GET') {
-    res.json({ status: 'ok', service: 'pulseguard-mcp' });
-    return;
-  }
+// Health check
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', service: 'pulseguard-mcp' });
+});
 
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-
+// MCP endpoint
+app.post('/', async (req, res) => {
   try {
     // Stateless: new transport + server per request (no session state)
     const transport = new StreamableHTTPServerTransport({
