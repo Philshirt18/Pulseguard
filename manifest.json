@@ -17,34 +17,42 @@
     "slash_commands": [
       {
         "command": "/executive-summary",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "Executive Intelligence Brief with critical risks and actions",
         "should_escape": false
       },
       {
         "command": "/risk-report",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "View all detected risks ranked by severity",
         "should_escape": false
       },
       {
         "command": "/why-risk",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "Deep root cause analysis for a specific risk",
         "usage_hint": "[risk-id]",
         "should_escape": false
       },
       {
         "command": "/recommend-action",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "Get recommended actions and expected business impact",
         "usage_hint": "[risk-id]",
         "should_escape": false
       },
       {
         "command": "/pulse",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "Quick risk status check",
         "should_escape": false
       }
     ]
   },
   "oauth_config": {
+    "redirect_urls": [
+      "https://pulseguard-2j5l.vercel.app/slack/oauth_redirect"
+    ],
     "scopes": {
       "bot": [
         "commands",
@@ -55,15 +63,17 @@
   },
   "settings": {
     "event_subscriptions": {
+      "request_url": "https://pulseguard-2j5l.vercel.app/api/slack",
       "bot_events": [
         "app_home_opened"
       ]
     },
     "interactivity": {
-      "is_enabled": true
+      "is_enabled": true,
+      "request_url": "https://pulseguard-2j5l.vercel.app/api/slack"
     },
     "org_deploy_enabled": false,
-    "socket_mode_enabled": true,
+    "socket_mode_enabled": false,
     "token_rotation_enabled": false
   }
 }

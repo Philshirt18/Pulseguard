@@ -16,6 +16,14 @@
       "dest": "/api/mcp.js"
     },
     {
+      "src": "/slack/install",
+      "dest": "/api/slack.js"
+    },
+    {
+      "src": "/slack/oauth_redirect",
+      "dest": "/api/slack.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/slack.js"
     }
