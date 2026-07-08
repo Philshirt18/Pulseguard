@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseGuard AI — Privacy Policy</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 2rem 1rem; line-height: 1.6; color: #1a1a2e; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; }
+    .updated { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+    ul { padding-left: 1.5rem; }
+    a { color: #1a73e8; }
+  </style>
+</head>
+<body>
+  <h1>PulseGuard AI — Privacy Policy</h1>
+  <p class="updated">Last updated: July 6, 2025</p>
+
+  <h2>Overview</h2>
+  <p>PulseGuard AI is an operational risk intelligence bot for Slack. We are committed to protecting the privacy of our users and their data.</p>
+
+  <h2>Data We Collect</h2>
+  <ul>
+    <li><strong>Slack Workspace ID and Bot Token</strong> — stored securely to deliver responses to your workspace.</li>
+    <li><strong>Slash command inputs</strong> — processed in real time to generate risk analysis. We do not store command text after the response is delivered.</li>
+  </ul>
+
+  <h2>Data We Do Not Collect</h2>
+  <ul>
+    <li>We do not read or store private messages, files, or channel history.</li>
+    <li>We do not collect personally identifiable information (PII) beyond what Slack provides in the OAuth flow (workspace ID, bot user ID).</li>
+    <li>We do not sell, share, or monetize any user data.</li>
+  </ul>
+
+  <h2>Third-Party Services</h2>
+  <p>PulseGuard may use OpenAI's API to generate narrative analysis. When this occurs, only the risk context (not user data) is sent to OpenAI. OpenAI's data usage policies apply to that processing.</p>
+
+  <h2>Data Retention</h2>
+  <p>OAuth installation tokens are stored in memory for the duration of the serverless function lifecycle. No persistent database of user data is maintained.</p>
+
+  <h2>Security</h2>
+  <p>All communication occurs over HTTPS. Slack request signatures are verified on every incoming request to prevent tampering.</p>
+
+  <h2>Your Rights</h2>
+  <p>You can uninstall PulseGuard AI from your workspace at any time via Slack's App Management settings. Upon uninstallation, all associated tokens are immediately invalidated.</p>
+
+  <h2>Contact</h2>
+  <p>For privacy-related questions, open an issue at <a href="https://github.com/Philshirt18/Pulseguard">github.com/Philshirt18/Pulseguard</a>.</p>
+</body>
+</html>
