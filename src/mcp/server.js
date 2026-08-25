@@ -1,20 +1,17 @@
 /**
- * PulseGuard MCP Server — HTTP Transport
+ * PulseGuard MCP Server — Local HTTP Transport
  *
- * Exposes PulseGuard's risk intelligence as MCP tools over HTTP using the
- * Streamable HTTP transport (MCP spec 2025-03-26).
+ * Runs as a persistent Express server for local development and
+ * non-serverless deployments. Uses the Streamable HTTP transport
+ * (MCP spec 2025-03-26) with optional stateful sessions.
  *
- * Endpoint:  POST /mcp          (stateless — new session per request)
- * Endpoint:  POST /mcp          (stateful  — pass Mcp-Session-Id header)
- *            GET  /mcp          (SSE stream for server-initiated messages)
- *            DELETE /mcp        (terminate a session)
+ * Endpoint: POST /mcp   — stateless or session-based MCP requests
+ *           GET  /mcp   — SSE stream (stateful sessions)
+ *           DELETE /mcp — terminate a session
+ *           GET  /health — liveness check
  *
- * Any MCP-compatible AI agent (Claude Desktop, Cursor, custom agents) can:
- * - Query active risks
- * - Investigate specific risks
- * - Get root cause analysis
- * - Get strategic recommendations
- * - Access forecast predictions
+ * Start: node src/mcp/server.js
+ * Port:  MCP_PORT env var (default: 3001)
  */
 
 require('dotenv').config();
@@ -22,274 +19,27 @@ require('dotenv').config();
 const express = require('express');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
-const { z } = require('zod');
+const { registerTools } = require('./tools');
+const logger = require('../services/logger');
 
-const riskDetector = require('../engine/riskDetector');
-const {
-  getInvestigationTimeline,
-  getForecast,
-  getAutonomousActions,
-  getHiddenCorrelation,
-  getExecutiveAssessment,
-  getBusinessImpact,
-  getImpactCalculation,
-  getHypotheses,
-  getEvidenceWeighting,
-  getDecisionSupport,
-} = require('../engine/agentIntelligence');
-
-// ==========================================
-// MCP SERVER FACTORY
-// Creates a fresh McpServer instance with all tools registered.
-// Called once per session (stateful) or once per request (stateless).
-// ==========================================
+// ---------------------------------------------------------------------------
+// MCP server factory — one instance per session (stateful) or per request (stateless)
+// ---------------------------------------------------------------------------
 
 function createMcpServer() {
   const server = new McpServer({
     name: 'pulseguard',
     version: '1.0.0',
-    description:
-      'PulseGuard — The Organizational Early Warning System. Discovers operational crises before humans recognize them.',
+    description: 'PulseGuard — The Organizational Early Warning System. Discovers operational crises before humans recognize them.',
   });
 
-  // ──────────────────────────────────────────
-  // TOOL: Get Executive Summary
-  // ──────────────────────────────────────────
-  server.tool(
-    'get_executive_summary',
-    'Get the current PulseGuard executive intelligence brief with all active risks, severity levels, and business impact.',
-    {},
-    async () => {
-      const risks = riskDetector.analyzeAll();
-      const topRisk = risks[0];
-      const assessment = topRisk ? getExecutiveAssessment(topRisk) : null;
-      const impact = topRisk ? getBusinessImpact(topRisk) : null;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                status: 'critical',
-                totalRisks: risks.length,
-                criticalRisks: risks.filter((r) => r.severity === 'critical').length,
-                topRisk: topRisk
-                  ? {
-                      id: topRisk.id,
-                      title: topRisk.title,
-                      region: topRisk.region,
-                      confidence: Math.round(topRisk.confidence * 100),
-                      type: topRisk.type,
-                    }
-                  : null,
-                assessment,
-                businessImpact: impact,
-                allRisks: risks.map((r) => ({
-                  id: r.id,
-                  title: r.title,
-                  severity: r.severity,
-                  confidence: Math.round(r.confidence * 100),
-                  region: r.region,
-                  type: r.type,
-                })),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  // ──────────────────────────────────────────
-  // TOOL: Investigate Risk
-  // ──────────────────────────────────────────
-  server.tool(
-    'investigate_risk',
-    'Perform a deep investigation on a specific risk. Returns root cause, investigation timeline, hypotheses evaluated, evidence weighting, impact calculation, and hidden correlations.',
-    {
-      risk_id: z.string().describe('The risk ID to investigate (e.g., risk-ops-ven-001)'),
-    },
-    async ({ risk_id }) => {
-      riskDetector.analyzeAll();
-      const risk = riskDetector.getRiskById(risk_id);
-
-      if (!risk) {
-        const allRisks = riskDetector.getRisksSorted();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(
-                {
-                  error: `Risk "${risk_id}" not found`,
-                  availableRisks: allRisks.map((r) => ({ id: r.id, title: r.title })),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
-
-      const timeline = getInvestigationTimeline(risk);
-      const hypotheses = getHypotheses(risk);
-      const evidence = getEvidenceWeighting(risk);
-      const impactCalc = getImpactCalculation(risk);
-      const correlation = getHiddenCorrelation(risk);
-      const assessment = getExecutiveAssessment(risk);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                risk: {
-                  id: risk.id,
-                  title: risk.title,
-                  severity: risk.severity,
-                  confidence: Math.round(risk.confidence * 100),
-                  region: risk.region,
-                },
-                assessment,
-                investigationTimeline: timeline,
-                hypothesesEvaluated: hypotheses,
-                evidenceWeighting: evidence,
-                impactCalculation: impactCalc,
-                hiddenCorrelation: correlation,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  // ──────────────────────────────────────────
-  // TOOL: Get Recommendations
-  // ──────────────────────────────────────────
-  server.tool(
-    'get_recommendations',
-    'Get strategic decision support and recommendations for a specific risk, including options analysis and forecast.',
-    {
-      risk_id: z.string().describe('The risk ID to get recommendations for'),
-    },
-    async ({ risk_id }) => {
-      riskDetector.analyzeAll();
-      const risk = riskDetector.getRiskById(risk_id);
-
-      if (!risk) {
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify({ error: `Risk "${risk_id}" not found` }) },
-          ],
-        };
-      }
-
-      const decision = getDecisionSupport(risk);
-      const forecast = getForecast(risk);
-      const actions = getAutonomousActions(risk);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                risk: { id: risk.id, title: risk.title, severity: risk.severity },
-                strategicOptions: decision,
-                forecast,
-                autonomousActionsTaken: actions,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  // ──────────────────────────────────────────
-  // TOOL: Get Risk Forecast
-  // ──────────────────────────────────────────
-  server.tool(
-    'get_forecast',
-    'Get predictive forecast for a risk — what happens in 7, 30, and 60 days if no action is taken.',
-    {
-      risk_id: z.string().describe('The risk ID to forecast'),
-    },
-    async ({ risk_id }) => {
-      riskDetector.analyzeAll();
-      const risk = riskDetector.getRiskById(risk_id);
-
-      if (!risk) {
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify({ error: `Risk "${risk_id}" not found` }) },
-          ],
-        };
-      }
-
-      const forecast = getForecast(risk);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ risk: { id: risk.id, title: risk.title }, forecast }, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // ──────────────────────────────────────────
-  // TOOL: List All Risks
-  // ──────────────────────────────────────────
-  server.tool(
-    'list_risks',
-    'List all currently detected operational risks with severity and confidence scores.',
-    {},
-    async () => {
-      const risks = riskDetector.analyzeAll();
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                totalRisks: risks.length,
-                risks: risks.map((r) => ({
-                  id: r.id,
-                  title: r.title,
-                  severity: r.severity,
-                  confidence: Math.round(r.confidence * 100),
-                  region: r.region,
-                  type: r.type,
-                  severityScore: Math.round(r.severityScore),
-                })),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
+  registerTools(server);
   return server;
 }
 
-// ==========================================
-// EXPRESS APP
-// ==========================================
+// ---------------------------------------------------------------------------
+// Express app
+// ---------------------------------------------------------------------------
 
 const app = express();
 app.use(express.json());
@@ -297,42 +47,33 @@ app.use(express.json());
 // Session store for stateful connections (sessionId → transport)
 const sessions = new Map();
 
-// ──────────────────────────────────────────
-// POST /mcp  — initiate or continue a session
-// GET  /mcp  — open SSE stream (stateful sessions)
-// DELETE /mcp — terminate a session
-// ──────────────────────────────────────────
 app.all('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
 
   try {
     if (req.method === 'POST') {
-      // ── Existing stateful session ──────────
       if (sessionId && sessions.has(sessionId)) {
         const { transport } = sessions.get(sessionId);
         await transport.handleRequest(req, res, req.body);
         return;
       }
 
-      // ── New session (or stateless request) ─
-      const isInitialize =
-        req.body?.method === 'initialize' || Array.isArray(req.body);
+      const isInitialize = req.body?.method === 'initialize' || Array.isArray(req.body);
 
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: isInitialize ? () => require('crypto').randomUUID() : undefined,
         onsessioninitialized: (id) => {
           sessions.set(id, { transport, server: mcpServer });
-          console.log(`  🔗 MCP session opened: ${id}`);
+          logger.info('MCP session opened', { sessionId: id });
         },
       });
 
       const mcpServer = createMcpServer();
 
-      // Clean up session on close
       transport.onclose = () => {
         if (transport.sessionId) {
           sessions.delete(transport.sessionId);
-          console.log(`  🔌 MCP session closed: ${transport.sessionId}`);
+          logger.info('MCP session closed', { sessionId: transport.sessionId });
         }
       };
 
@@ -342,7 +83,6 @@ app.all('/mcp', async (req, res) => {
     }
 
     if (req.method === 'GET') {
-      // SSE stream — requires an active session
       if (!sessionId || !sessions.has(sessionId)) {
         res.status(400).json({ error: 'Missing or unknown Mcp-Session-Id' });
         return;
@@ -360,46 +100,39 @@ app.all('/mcp', async (req, res) => {
       const { transport } = sessions.get(sessionId);
       await transport.handleRequest(req, res);
       sessions.delete(sessionId);
-      console.log(`  🗑️  MCP session deleted: ${sessionId}`);
+      logger.info('MCP session deleted', { sessionId });
       return;
     }
 
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
-    console.error('MCP request error:', err);
+    logger.error('MCP request error', { error: err.message });
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
 });
 
-// Health check
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'pulseguard-mcp', sessions: sessions.size });
+  res.json({
+    status: 'ok',
+    service: 'pulseguard-mcp',
+    sessions: sessions.size,
+    uptime: Math.round(process.uptime()),
+  });
 });
 
-// ==========================================
-// START
-// ==========================================
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
 
 const PORT = process.env.MCP_PORT || 3001;
 
 app.listen(PORT, () => {
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  🛡️  PulseGuard MCP Server (HTTP)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log(`  ✅ Listening on http://localhost:${PORT}`);
-  console.log(`  ✅ MCP endpoint: http://localhost:${PORT}/mcp`);
-  console.log(`  ✅ Health check: http://localhost:${PORT}/health`);
-  console.log('');
-  console.log('  Tools available:');
-  console.log('    • get_executive_summary');
-  console.log('    • list_risks');
-  console.log('    • investigate_risk');
-  console.log('    • get_recommendations');
-  console.log('    • get_forecast');
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  logger.info('PulseGuard MCP Server started', {
+    port: PORT,
+    endpoint: `http://localhost:${PORT}/mcp`,
+    health: `http://localhost:${PORT}/health`,
+  });
+  console.log(`\n  🛡️  PulseGuard MCP Server\n  ✅ http://localhost:${PORT}/mcp\n  ✅ http://localhost:${PORT}/health\n`);
 });

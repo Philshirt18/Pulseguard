@@ -8,6 +8,8 @@
     "dev": "nodemon src/app.js",
     "mcp": "node src/mcp/server.js",
     "mcp:dev": "nodemon src/mcp/server.js",
+    "test": "node --test tests/*.test.js",
+    "test:watch": "node --test --watch tests/*.test.js",
     "generate-data": "node src/data/generate.js"
   },
   "dependencies": {

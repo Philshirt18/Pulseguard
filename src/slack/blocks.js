@@ -482,8 +482,81 @@ function buildProactiveAlert(risk) {
 }
 
 // ==========================================
-// UTILITY
+// APPROVAL FLOW
+// High-impact actions require explicit human approval before being logged.
+// The AI recommends — a human confirms.
 // ==========================================
+
+/**
+ * Builds an approval request card for a high-impact immediate action.
+ * Shown after /recommend-action when severity is critical or high.
+ *
+ * @param {object} risk
+ * @param {string} action      — the action text
+ * @param {number} actionIndex — index in the immediateActions array
+ * @param {string} owner       — recommended owner
+ * @param {string} timeline    — recommended timeline
+ */
+function buildApprovalRequest({ risk, action, actionIndex, owner, timeline }) {
+  return [
+    { type: 'divider' },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `🔐 *Action Requires Approval*\n\n*Proposed action:* ${action}\n*Recommended owner:* ${owner}\n*Timeline:* ${timeline}`,
+      },
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `${SEVERITY_ICONS[risk.severity]} ${risk.title} · Risk ID: \`${risk.id}\`` }],
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Approve', emoji: true },
+          style: 'primary',
+          action_id: `approve_action_${risk.id}`,
+          value: `${risk.id}::${actionIndex}`,
+          confirm: {
+            title: { type: 'plain_text', text: 'Confirm Approval' },
+            text: { type: 'mrkdwn', text: `Approve: *${action}*?` },
+            confirm: { type: 'plain_text', text: 'Yes, Approve' },
+            deny: { type: 'plain_text', text: 'Cancel' },
+          },
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '❌ Reject', emoji: true },
+          style: 'danger',
+          action_id: `reject_action_${risk.id}`,
+          value: `${risk.id}::${actionIndex}`,
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * Builds the confirmation message shown after an approval or rejection.
+ */
+function buildApprovalConfirmed({ riskId, actionIndex, approvedBy, approved }) {
+  const icon = approved ? '✅' : '❌';
+  const status = approved ? 'Approved' : 'Rejected';
+  const color = approved ? 'Action logged as approved.' : 'Action marked as rejected. No further steps taken.';
+
+  return [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `${icon} *Action ${status}* by <@${approvedBy}>\n_${color}_\n\nRisk: \`${riskId}\` · Action #${actionIndex + 1}`,
+      },
+    },
+  ];
+}
 
 function buildAnalyzingMessage() {
   return [{
@@ -505,4 +578,6 @@ module.exports = {
   buildProactiveAlert,
   buildAnalyzingMessage,
   buildErrorMessage,
+  buildApprovalRequest,
+  buildApprovalConfirmed,
 };
