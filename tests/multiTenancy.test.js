@@ -20,7 +20,7 @@ const installStore = require('../src/slack/installationStore');
 function clearAll() {
   tracker._store.clear();
   billing._subscriptions.clear();
-  installStore._store.clear();
+  installStore._memStore.clear();
 }
 
 const W1 = 'T_WORKSPACE_ONE';
