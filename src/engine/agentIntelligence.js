@@ -433,15 +433,35 @@ function getBusinessImpact(risk, allRisks) {
     };
   }
 
+  // Generic case — derive from the REAL risk data produced by the engine,
+  // not from fabricated multiples of the severity score. This keeps the
+  // reported impact grounded in the workspace's actual uploaded data.
+  const impact = risk.impact || {};
+
+  // Properties affected: use the real figure the detector computed
+  const propsRaw =
+    impact.affectedProperties ??
+    impact.properties ??
+    null;
+
+  // Revenue at risk: prefer real monetary fields from the detector
+  const revenueRaw =
+    impact.estimatedRevenueLoss ??
+    impact.projectedMonthlyLoss ??
+    impact.currentRefunds ??
+    null;
+
   return {
-    revenueAtRisk: `€${Math.round(risk.severityScore * 2000).toLocaleString()}`,
-    revenueAtRiskPeriod: 'projected',
-    propertiesAffected: String(Math.round(risk.severityScore * 15)),
-    ownersAtRisk: String(Math.round(risk.severityScore / 20)),
-    reputationImpact: 'Moderate — trending negative',
+    revenueAtRisk: revenueRaw !== null
+      ? `€${Number(revenueRaw).toLocaleString()}`
+      : 'Not quantified',
+    revenueAtRiskPeriod: impact.projectedMonthlyLoss ? 'monthly' : 'projected',
+    propertiesAffected: propsRaw !== null ? String(propsRaw) : 'N/A',
+    ownersAtRisk: impact.ownersAtRisk ? String(impact.ownersAtRisk) : 'Under assessment',
+    reputationImpact: 'Trending negative — see evidence',
     escalationWindow: '2-3 weeks',
-    guestsImpacted: String(Math.round(risk.severityScore * 5)),
-    employeesInvolved: '~10',
+    guestsImpacted: impact.estimatedGuestImpact ? `~${impact.estimatedGuestImpact}` : 'Under assessment',
+    employeesInvolved: 'Under assessment',
   };
 }
 

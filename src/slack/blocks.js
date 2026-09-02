@@ -25,6 +25,26 @@ const {
 const SEVERITY_ICONS = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' };
 const RISK_TYPE_ICONS = { customer_satisfaction: '😤', revenue: '💰', operational: '⚙️', owner_churn: '🏠' };
 
+/**
+ * Renders a 10-segment confidence bar reflecting the actual confidence value.
+ */
+function _confidenceBar(confidence) {
+  const filled = Math.round((confidence || 0) * 10);
+  return '\u{1F7E9}'.repeat(filled) + '\u2B1C'.repeat(Math.max(0, 10 - filled));
+}
+
+/**
+ * Turns an evidence key like "avgResponseHours" into "Avg response hours".
+ */
+function _humanizeKey(key) {
+  return String(key)
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, c => c.toUpperCase());
+}
+
 // ==========================================
 // EXECUTIVE SUMMARY (V6 - Emergency Alert)
 // 5 seconds to understand. 15 seconds to click Investigate.
@@ -57,7 +77,7 @@ function buildExecutiveSummary(summary, risks) {
     {
       type: 'section',
       fields: [
-        { type: 'mrkdwn', text: `*🟢 Confidence*\n🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 *${Math.round(topRisk.confidence * 100)}%*\n_Evidence verified across 530 data points_` },
+        { type: 'mrkdwn', text: `*🟢 Confidence*\n${_confidenceBar(topRisk.confidence)} *${Math.round(topRisk.confidence * 100)}%*\n_Evidence: ${Object.keys(topRisk.evidence || {}).length} data signals analyzed_` },
         { type: 'mrkdwn', text: `*💰 Revenue Exposure*\n*${impact.revenueAtRisk}* ${impact.revenueAtRiskPeriod}` },
         { type: 'mrkdwn', text: `*🏠 Properties Affected*\n*${impact.propertiesAffected}*` },
         { type: 'mrkdwn', text: `*⏳ Intervention Window*\n*${impact.escalationWindow}*` },
@@ -70,10 +90,9 @@ function buildExecutiveSummary(summary, risks) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `⚠️ *Why This Matters*\nWithout intervention:\n` +
-          `• Owner churn probability exceeds 60% within 60 days\n` +
-          `• Revenue exposure increases ~€8,000 per day\n` +
-          `• Negative reviews projected to increase 22%`,
+        text: `⚠️ *Why This Matters*\nThis risk scored *${Math.round(topRisk.severityScore)}* on PulseGuard's severity scale ` +
+          `(*${topRisk.severity}*). Key evidence:\n` +
+          Object.entries(topRisk.evidence || {}).slice(0, 3).map(([k, v]) => `• ${_humanizeKey(k)}: ${v}`).join('\n'),
       },
     },
     { type: 'divider' },
