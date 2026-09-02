@@ -54,6 +54,12 @@
         "should_escape": false
       },
       {
+        "command": "/pulseguard-load",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
+        "description": "Paste your operational data (JSON or CSV) to analyze it",
+        "should_escape": false
+      },
+      {
         "command": "/pulseguard-data",
         "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "See what data is loaded and manage it",

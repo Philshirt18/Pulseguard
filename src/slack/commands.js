@@ -265,6 +265,65 @@ function registerCommands(app) {
     await respond({ response_type: 'ephemeral', blocks: blocks.buildUploadInstructions() });
   });
 
+  // /pulseguard-load — open a modal to paste JSON/CSV data directly.
+  // This is the reliable path on serverless (uses the interactivity endpoint,
+  // no file events or extra scopes needed).
+  app.command('/pulseguard-load', async ({ ack, body, client }) => {
+    await ack();
+    try {
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: blocks.buildLoadDataModal(),
+      });
+    } catch (error) {
+      logger.error('Failed to open load modal', { error: error.message });
+    }
+  });
+
+  // Handle the paste-data modal submission
+  app.view('load_data_modal', async ({ ack, body, view, client }) => {
+    const workspaceId = body?.team?.id || body?.user?.team_id || process.env.SLACK_TEAM_ID || 'unknown';
+    const userId = body?.user?.id || 'unknown';
+
+    const raw = view.state.values?.data_block?.data_input?.value || '';
+    const format = view.state.values?.format_block?.format_select?.selected_option?.value || 'json';
+
+    const result = parseUpload(raw, format === 'csv' ? 'pasted.csv' : 'pasted.json');
+
+    if (!result.ok) {
+      // Show validation errors inside the modal
+      await ack({
+        response_action: 'errors',
+        errors: {
+          data_block: (result.errors[0] || 'Invalid data.').slice(0, 150),
+        },
+      });
+      return;
+    }
+
+    // Accept and close the modal
+    await ack();
+
+    try {
+      const saved = await dataStore.saveDataset(workspaceId, result.dataset, { uploadedBy: userId, source: result.source });
+      logger.info('Workspace data loaded via modal', { workspaceId, source: result.source, counts: saved.counts });
+
+      const dm = await _openDm(client, userId);
+      await _dm(client, dm, blocks.buildUploadResult({
+        ok: true,
+        counts: saved.counts,
+        warnings: result.warnings,
+        source: result.source,
+      }));
+    } catch (error) {
+      logger.error('Modal data save failed', { workspaceId, error: error.message });
+      try {
+        const dm = await _openDm(client, userId);
+        await _dm(client, dm, blocks.buildErrorMessage('Something went wrong saving your data. Please try again.'));
+      } catch { /* best effort */ }
+    }
+  });
+
   // /pulseguard-data — show what data is currently loaded for this workspace
   app.command('/pulseguard-data', async ({ command, ack, respond }) => {
     await ack();

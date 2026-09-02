@@ -530,6 +530,55 @@ function buildUploadInstructions() {
 }
 
 /**
+ * Modal view for /pulseguard-load — paste JSON or CSV data directly.
+ * Reliable on serverless (interactivity endpoint), no file events needed.
+ */
+function buildLoadDataModal() {
+  return {
+    type: 'modal',
+    callback_id: 'load_data_modal',
+    title: { type: 'plain_text', text: 'Load Your Data' },
+    submit: { type: 'plain_text', text: 'Analyze' },
+    close: { type: 'plain_text', text: 'Cancel' },
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: 'Paste your operational data below as *JSON* or *CSV*. PulseGuard will analyze it for risks.\n\nNeed the format? Run `/pulseguard-upload` to see examples.',
+        },
+      },
+      {
+        type: 'input',
+        block_id: 'format_block',
+        label: { type: 'plain_text', text: 'Format' },
+        element: {
+          type: 'static_select',
+          action_id: 'format_select',
+          initial_option: { text: { type: 'plain_text', text: 'JSON' }, value: 'json' },
+          options: [
+            { text: { type: 'plain_text', text: 'JSON' }, value: 'json' },
+            { text: { type: 'plain_text', text: 'CSV' }, value: 'csv' },
+          ],
+        },
+      },
+      {
+        type: 'input',
+        block_id: 'data_block',
+        label: { type: 'plain_text', text: 'Your data' },
+        element: {
+          type: 'plain_text_input',
+          action_id: 'data_input',
+          multiline: true,
+          placeholder: { type: 'plain_text', text: 'Paste JSON object or CSV rows here...' },
+          max_length: 20000,
+        },
+      },
+    ],
+  };
+}
+
+/**
  * Status shown by /pulseguard-data.
  * @param {object|null} info - from dataStore.getDatasetInfo, or null
  */
@@ -719,6 +768,7 @@ module.exports = {
   buildApprovalRequest,
   buildApprovalConfirmed,
   buildUploadInstructions,
+  buildLoadDataModal,
   buildDataStatus,
   buildUploadResult,
 };
