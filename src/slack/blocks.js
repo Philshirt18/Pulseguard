@@ -571,7 +571,7 @@ function buildLoadDataModal() {
           action_id: 'data_input',
           multiline: true,
           placeholder: { type: 'plain_text', text: 'Paste JSON object or CSV rows here...' },
-          max_length: 20000,
+          max_length: 3000,
         },
       },
     ],
