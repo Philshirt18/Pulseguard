@@ -1,17 +1,45 @@
 /**
  * PulseGuard AI V2 - Agent Intelligence Engine
- * 
- * Generates agentic behavior data:
- * - Investigation Timelines
- * - Forecast Predictions
- * - Autonomous Actions Taken
- * - Agent Memory
- * - Hidden Correlation Discovery
- * - Executive Assessment
- * - Business Impact Dashboard
- * 
- * All deterministic. Makes PulseGuard feel like an AI COO.
+ *
+ * Generates the deterministic display data behind investigations:
+ * timelines, forecasts, hypotheses, evidence weighting, decision support.
+ *
+ * ── Integrity model ──────────────────────────────────────────────────────────
+ * Rich, scenario-specific narratives are ONLY produced for the bundled demo
+ * dataset (which the UI clearly labels as "sample data"). For real workspace
+ * data, every function derives its output from the risk's actual evidence and
+ * never fabricates calendar dates, monetary figures, or "completed" actions
+ * the app did not perform.
+ *
+ * _isDemoRisk() is the gate: demo-scenario risks are identified by their
+ * signature values (e.g. the "Atlas Services" vendor and the EuroStay demo
+ * regions). Any risk that isn't a demo risk falls through to the honest,
+ * data-derived generic branches.
  */
+
+// Region names used only by the bundled demo dataset (src/data/mockData.js).
+const DEMO_REGIONS = new Set([
+  'Southern Spain', 'Coastal Portugal', 'French Riviera', 'Italian Lakes',
+  'Greek Islands', 'Barcelona Metro', 'Croatian Coast',
+]);
+
+// Owner names used only by the demo dataset.
+const DEMO_OWNERS = new Set([
+  'Miguel Fernandez', 'Sophie Laurent', 'Antonio Carvalho',
+  'Giovanni Bianchi', 'Helena Papadimitriou', 'Clara Vidal',
+]);
+
+/**
+ * Returns true only for risks from the bundled demo dataset. Used to gate
+ * the rich, illustrative narratives so they never appear on real user data.
+ */
+function _isDemoRisk(risk) {
+  if (!risk) return false;
+  if (risk.evidence?.vendor === 'Atlas Services') return true;
+  if (risk.evidence?.owner && DEMO_OWNERS.has(risk.evidence.owner)) return true;
+  if (risk.region && DEMO_REGIONS.has(risk.region)) return true;
+  return false;
+}
 
 // ==========================================
 // INVESTIGATION TIMELINE
@@ -30,7 +58,7 @@ function getInvestigationTimeline(risk) {
     ];
   }
 
-  if (risk.type === 'customer_satisfaction' && risk.region === 'Southern Spain') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction' && risk.region === 'Southern Spain') {
     return [
       { date: 'May 14', event: 'Negative review rate rises above 25% threshold', confidence: 38, status: 'detected' },
       { date: 'May 19', event: 'Complaint volume exceeds 2x baseline', confidence: 55, status: 'investigating' },
@@ -41,7 +69,7 @@ function getInvestigationTimeline(risk) {
     ];
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return [
       { date: 'May 10', event: 'Owner satisfaction score drops below 3.0 threshold', confidence: 45, status: 'detected' },
       { date: 'May 16', event: 'Escalation frequency doubles compared to historical average', confidence: 58, status: 'investigating' },
@@ -51,7 +79,7 @@ function getInvestigationTimeline(risk) {
     ];
   }
 
-  if (risk.type === 'revenue') {
+  if (_isDemoRisk(risk) && risk.type === 'revenue') {
     return [
       { date: 'May 13', event: 'Cancellation rate exceeds 10% in region', confidence: 40, status: 'detected' },
       { date: 'May 18', event: 'Refund volume crosses €100,000 monthly threshold', confidence: 55, status: 'investigating' },
@@ -60,12 +88,18 @@ function getInvestigationTimeline(risk) {
     ];
   }
 
-  // Generic
-  return [
-    { date: 'May 15', event: 'Initial anomaly detected in operational metrics', confidence: 40, status: 'detected' },
-    { date: 'May 22', event: 'Pattern confirmed across multiple data sources', confidence: 65, status: 'investigating' },
-    { date: 'May 29', event: 'Root cause identified and risk quantified', confidence: 85, status: 'confirmed' },
+  // Real uploaded data: build an honest detection sequence from the risk's
+  // own evidence rather than inventing specific calendar dates.
+  const conf = Math.round((risk.confidence || 0) * 100);
+  const evidenceKeys = Object.keys(risk.evidence || {});
+  const timeline = [
+    { date: 'Detection', event: `Anomaly detected in ${risk.region} (${risk.type.replace(/_/g, ' ')})`, confidence: Math.max(40, conf - 30), status: 'detected' },
   ];
+  if (evidenceKeys.length > 1) {
+    timeline.push({ date: 'Correlation', event: `Pattern confirmed across ${evidenceKeys.length} evidence signals`, confidence: Math.max(55, conf - 15), status: 'investigating' });
+  }
+  timeline.push({ date: 'Assessment', event: `Risk scored ${Math.round(risk.severityScore)} (${risk.severity}) and quantified`, confidence: conf, status: 'confirmed' });
+  return timeline;
 }
 
 // ==========================================
@@ -98,7 +132,7 @@ function getForecast(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       sevenDay: [
         { metric: 'Complaint volume', change: '+15%', direction: 'up' },
@@ -120,7 +154,7 @@ function getForecast(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       sevenDay: [
         { metric: 'Escalation probability', change: '+2 additional escalations', direction: 'up' },
@@ -141,22 +175,40 @@ function getForecast(risk) {
     };
   }
 
-  // Revenue / generic
+  // Real uploaded data (revenue type has real numbers via risk.impact;
+  // other types use honest directional projections). Avoid inventing
+  // specific euro figures that aren't derived from the data.
+  if (risk.type === 'revenue' && risk.impact) {
+    const monthly = risk.impact.projectedMonthlyLoss;
+    return {
+      sevenDay: [
+        { metric: 'Cancellation trend', change: risk.impact.trend === 'increasing' ? 'continuing to rise' : 'stable', direction: risk.impact.trend === 'increasing' ? 'up' : 'flat' },
+      ],
+      thirtyDay: [
+        monthly
+          ? { metric: 'Projected monthly loss', change: `€${Number(monthly).toLocaleString()}`, direction: 'up' }
+          : { metric: 'Revenue impact', change: 'continued erosion if unaddressed', direction: 'up' },
+      ],
+      sixtyDay: [
+        { metric: 'Recovery timeline', change: 'weeks after intervention (booking lead times)', direction: 'up' },
+      ],
+      confidence: Math.round((risk.confidence || 0.7) * 100),
+      model: 'Directional projection based on the current trend in your data. Assumes no intervention.',
+    };
+  }
+
   return {
     sevenDay: [
-      { metric: 'Cancellation rate', change: '+3 percentage points', direction: 'up' },
-      { metric: 'Refund volume', change: '+€18,000', direction: 'up' },
+      { metric: 'Risk trajectory', change: 'expected to continue without action', direction: 'up' },
     ],
     thirtyDay: [
-      { metric: 'Revenue loss', change: '€72,000 cumulative', direction: 'up' },
-      { metric: 'Occupancy rate', change: '-6%', direction: 'down' },
+      { metric: 'Severity', change: 'likely to increase if root cause is unaddressed', direction: 'up' },
     ],
     sixtyDay: [
-      { metric: 'Total exposure', change: '€195,000', direction: 'up' },
-      { metric: 'Market recovery', change: '8-10 weeks after fix', direction: 'up' },
+      { metric: 'Recovery', change: 'longer and costlier the later intervention occurs', direction: 'up' },
     ],
-    confidence: 75,
-    model: 'Based on cancellation velocity and seasonal demand patterns',
+    confidence: Math.round((risk.confidence || 0.7) * 100),
+    model: 'Directional projection based on your data. Specific figures depend on your operational context.',
   };
 }
 
@@ -165,7 +217,7 @@ function getForecast(risk) {
 // ==========================================
 
 function getAutonomousActions(risk) {
-  if (risk.type === 'operational' && risk.evidence?.vendor === 'Atlas Services') {
+  if (_isDemoRisk(risk) && risk.type === 'operational' && risk.evidence?.vendor === 'Atlas Services') {
     return [
       { action: 'Created Incident Channel', detail: '#atlas-services-crisis', status: 'completed', icon: '📢' },
       { action: 'Assigned Executive Owner', detail: 'VP Operations — Carlos Mendez', status: 'completed', icon: '👤' },
@@ -177,7 +229,7 @@ function getAutonomousActions(risk) {
     ];
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return [
       { action: 'Created Response Team', detail: '#southern-spain-recovery', status: 'completed', icon: '👥' },
       { action: 'Escalated to CS Director', detail: 'Priority override applied', status: 'completed', icon: '🔴' },
@@ -187,7 +239,7 @@ function getAutonomousActions(risk) {
     ];
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return [
       { action: 'Priority Owner Alert', detail: 'VP Owner Relations notified', status: 'completed', icon: '🚨' },
       { action: 'Generated Retention Package', detail: 'Fee reduction + priority service offer', status: 'completed', icon: '💼' },
@@ -197,11 +249,13 @@ function getAutonomousActions(risk) {
     ];
   }
 
+  // Real uploaded data: PulseGuard does NOT auto-perform actions. Present
+  // these as suggested next steps, not completed actions, so we never claim
+  // to have done something we didn't.
   return [
-    { action: 'Created Incident Tracker', detail: `#risk-${risk.id}`, status: 'completed', icon: '📢' },
-    { action: 'Assigned Risk Owner', detail: 'Regional Manager notified', status: 'completed', icon: '👤' },
-    { action: 'Escalated Priority', detail: `→ ${risk.severity.toUpperCase()}`, status: 'completed', icon: '🔴' },
-    { action: 'Scheduled Review', detail: '72-hour reassessment', status: 'scheduled', icon: '⏰' },
+    { action: 'Flag for investigation', detail: `Run /why-risk ${risk.id}`, status: 'suggested', icon: '🔍' },
+    { action: 'Assign an owner', detail: 'Designate a responsible team member', status: 'suggested', icon: '👤' },
+    { action: 'Review recommendations', detail: `Run /recommend-action ${risk.id}`, status: 'suggested', icon: '🎯' },
   ];
 }
 
@@ -233,7 +287,7 @@ function getAgentMemory(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       firstFlagged: '18 days ago',
       previousScores: [
@@ -253,7 +307,7 @@ function getAgentMemory(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       firstFlagged: '12 days ago',
       previousScores: [
@@ -272,14 +326,19 @@ function getAgentMemory(risk) {
     };
   }
 
+  // Real uploaded data: PulseGuard analyzes a point-in-time snapshot and does
+  // not yet track historical scores across uploads, so we don't fabricate a
+  // score history. Report only what's true for this analysis.
   return {
-    firstFlagged: '14 days ago',
+    firstFlagged: 'This analysis',
     previousScores: [
-      { date: '2 weeks ago', score: Math.round(risk.severityScore * 0.5), severity: 'medium' },
-      { date: 'Today', score: Math.round(risk.severityScore), severity: risk.severity },
+      { date: 'Current', score: Math.round(risk.severityScore), severity: risk.severity },
     ],
     previousRecommendations: [],
-    observations: ['Risk has been escalating steadily since detection'],
+    observations: [
+      `Detected at severity score ${Math.round(risk.severityScore)} (${risk.severity}).`,
+      'Historical tracking across uploads is not yet available — this reflects your most recent data.',
+    ],
   };
 }
 
@@ -300,7 +359,7 @@ function getHiddenCorrelation(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       title: 'Hidden Pattern Detected',
       insight: 'PulseGuard discovered that negative reviews posted between *Friday-Sunday* have a *2.4x greater impact* on subsequent booking cancellations than weekday reviews.',
@@ -312,7 +371,7 @@ function getHiddenCorrelation(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       title: 'Early Warning Signal Discovered',
       insight: 'PulseGuard identified that owners who receive *3+ guest complaints in a 7-day window* have a *78% probability* of filing an escalation within 48 hours.',
@@ -350,7 +409,7 @@ function getExecutiveAssessment(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       recommendation: 'Immediate guest recovery program required.',
       assessment: 'Guest satisfaction in Southern Spain has crossed the *crisis threshold*. The current 42% negative review rate is actively destroying demand for future bookings. This is a compounding problem: each negative review reduces future booking probability, creating a downward spiral that accelerates without intervention.',
@@ -360,7 +419,7 @@ function getExecutiveAssessment(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       recommendation: 'Personal executive outreach within 24 hours.',
       assessment: 'A top-10 revenue owner is signaling imminent departure. The escalation pattern, satisfaction decline, and silence pattern match *78% of historical churn cases*. This owner represents €890,000 in annual revenue and influences 3+ neighboring owners who are watching how EuroStay responds.',
@@ -370,22 +429,27 @@ function getExecutiveAssessment(risk) {
     };
   }
 
-  if (risk.type === 'revenue') {
+  if (risk.type === 'revenue' && risk.impact) {
+    const monthly = risk.impact.projectedMonthlyLoss;
+    const refunds = risk.impact.currentRefunds;
     return {
-      recommendation: 'Revenue protection measures needed this week.',
-      assessment: 'Cancellation rates have reached *2.7x baseline* and are accelerating. The primary driver is reputation damage from unresolved operational issues. Revenue recovery will lag operational fix by 6-8 weeks due to booking lead times.',
-      exposure: `€${Math.round(risk.severityScore * 2500).toLocaleString()} projected`,
-      riskLevel: 'Critical — Accelerating',
-      urgency: 'Peak season amplifies both the loss rate and the recovery difficulty. Immediate action required.',
+      recommendation: 'Revenue protection measures recommended.',
+      assessment: `Cancellations in ${risk.region} are above baseline (${risk.impact.cancellationRate || 'elevated'} vs ${risk.impact.baselineRate || 'baseline'}). Revenue recovery typically lags an operational fix due to booking lead times.`,
+      exposure: monthly ? `€${Number(monthly).toLocaleString()} projected monthly`
+        : refunds ? `€${Number(refunds).toLocaleString()} in refunds to date`
+        : 'See evidence for figures',
+      riskLevel: `${risk.severity.charAt(0).toUpperCase() + risk.severity.slice(1)} — trend: ${risk.impact.trend || 'monitoring'}`,
+      urgency: 'Earlier action reduces both the loss rate and recovery difficulty.',
     };
   }
 
+  // Real uploaded data, generic case — grounded, no invented exposure figure.
   return {
     recommendation: 'Management attention recommended.',
-    assessment: `Operational metrics in ${risk.region} have crossed alert thresholds. Without intervention, the issue is projected to escalate within 2-3 weeks.`,
-    exposure: `€${Math.round(risk.severityScore * 300).toLocaleString()}`,
+    assessment: `Operational metrics in ${risk.region} have crossed PulseGuard's alert thresholds (severity score ${Math.round(risk.severityScore)}, ${Math.round((risk.confidence || 0) * 100)}% confidence). Review the evidence and root-cause analysis to prioritize.`,
+    exposure: 'Not directly quantified — see evidence and impact breakdown',
     riskLevel: risk.severity.charAt(0).toUpperCase() + risk.severity.slice(1),
-    urgency: 'Action within 1-2 weeks recommended to prevent further deterioration.',
+    urgency: 'Action recommended to prevent further deterioration.',
   };
 }
 
@@ -407,7 +471,7 @@ function getBusinessImpact(risk, allRisks) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       revenueAtRisk: '€180,000',
       revenueAtRiskPeriod: 'monthly',
@@ -420,7 +484,7 @@ function getBusinessImpact(risk, allRisks) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       revenueAtRisk: '€890,000',
       revenueAtRiskPeriod: 'annual (single owner)',
@@ -488,7 +552,7 @@ function getImpactCalculation(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       title: 'Satisfaction Impact Calculation',
       steps: [
@@ -506,7 +570,7 @@ function getImpactCalculation(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       title: 'Owner Churn Impact Calculation',
       steps: [
@@ -524,7 +588,7 @@ function getImpactCalculation(risk) {
     };
   }
 
-  if (risk.type === 'revenue') {
+  if (_isDemoRisk(risk) && risk.type === 'revenue') {
     return {
       title: 'Revenue Loss Calculation',
       steps: [
@@ -542,19 +606,35 @@ function getImpactCalculation(risk) {
     };
   }
 
+  // Real uploaded data, generic case — show the actual computed inputs
+  // rather than a fabricated monetary result.
+  const steps = [
+    { label: 'Severity score', value: String(Math.round(risk.severityScore)) },
+    { label: 'Severity level', value: risk.severity },
+    { label: 'Confidence', value: `${Math.round((risk.confidence || 0) * 100)}%` },
+    { label: 'Region', value: risk.region },
+  ];
+  for (const [k, v] of Object.entries(risk.evidence || {}).slice(0, 4)) {
+    steps.push({ label: _humanize(k), value: String(v) });
+  }
   return {
-    title: 'Impact Calculation',
-    steps: [
-      { label: 'Severity score', value: String(Math.round(risk.severityScore)) },
-      { label: 'Affected operations', value: risk.region },
-      { label: 'Confidence level', value: `${Math.round(risk.confidence * 100)}%` },
-    ],
-    formula: 'Risk score × regional revenue factor × confidence',
-    result: `€${Math.round(risk.severityScore * 300).toLocaleString()}`,
-    resultLabel: 'Estimated Impact',
-    confidence: Math.round(risk.confidence * 100),
-    additionalNote: null,
+    title: 'Risk Assessment Breakdown',
+    steps,
+    formula: 'Deterministic threshold + trend + correlation analysis across the signals above',
+    result: `${risk.severity.toUpperCase()} (score ${Math.round(risk.severityScore)})`,
+    resultLabel: 'Assessed Risk Level',
+    confidence: Math.round((risk.confidence || 0) * 100),
+    additionalNote: 'Monetary impact is shown only where it can be derived from your uploaded data.',
   };
+}
+
+function _humanize(key) {
+  return String(key)
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, c => c.toUpperCase());
 }
 
 // ==========================================
@@ -603,7 +683,7 @@ function getHypotheses(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       hypotheses: [
         {
@@ -636,7 +716,7 @@ function getHypotheses(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       hypotheses: [
         {
@@ -756,7 +836,7 @@ function getDecisionSupport(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       options: [
         {
@@ -795,7 +875,7 @@ function getDecisionSupport(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       options: [
         {
@@ -883,7 +963,7 @@ function getEvidenceWeighting(risk) {
     };
   }
 
-  if (risk.type === 'customer_satisfaction') {
+  if (_isDemoRisk(risk) && risk.type === 'customer_satisfaction') {
     return {
       weights: [
         { signal: 'Negative Review Rate', weight: 34, dataPoints: 1095 },
@@ -898,7 +978,7 @@ function getEvidenceWeighting(risk) {
     };
   }
 
-  if (risk.type === 'owner_churn') {
+  if (_isDemoRisk(risk) && risk.type === 'owner_churn') {
     return {
       weights: [
         { signal: 'Satisfaction Score Decline', weight: 35, dataPoints: 12 },
@@ -913,7 +993,7 @@ function getEvidenceWeighting(risk) {
     };
   }
 
-  if (risk.type === 'revenue') {
+  if (_isDemoRisk(risk) && risk.type === 'revenue') {
     return {
       weights: [
         { signal: 'Cancellation Rate Excess', weight: 40, dataPoints: 156 },
@@ -927,15 +1007,27 @@ function getEvidenceWeighting(risk) {
     };
   }
 
+  // Real uploaded data, generic case — derive signals from the risk's own
+  // evidence fields. Weights are distributed evenly (we don't fabricate a
+  // Bayesian weighting we didn't compute); data points reflect real values
+  // where the evidence value is numeric.
+  const entries = Object.entries(risk.evidence || {});
+  const signalCount = entries.length || 1;
+  const evenWeight = Math.round(100 / signalCount);
+  const weights = entries.map(([k, v]) => {
+    const numeric = Number(String(v).replace(/[^0-9.]/g, ''));
+    return {
+      signal: _humanize(k),
+      weight: evenWeight,
+      dataPoints: Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 1,
+    };
+  });
+  const totalDataPoints = weights.reduce((sum, w) => sum + w.dataPoints, 0);
   return {
-    weights: [
-      { signal: 'Primary indicator', weight: 50, dataPoints: 20 },
-      { signal: 'Secondary indicator', weight: 30, dataPoints: 15 },
-      { signal: 'Supporting signal', weight: 20, dataPoints: 10 },
-    ],
-    finalConfidence: Math.round(risk.confidence * 100),
-    totalDataPoints: 45,
-    methodology: 'Multi-signal threshold analysis',
+    weights: weights.length ? weights : [{ signal: 'Threshold analysis', weight: 100, dataPoints: 1 }],
+    finalConfidence: Math.round((risk.confidence || 0) * 100),
+    totalDataPoints,
+    methodology: 'Deterministic multi-signal threshold and trend analysis across the evidence fields in your data.',
   };
 }
 

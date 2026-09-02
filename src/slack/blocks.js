@@ -34,6 +34,24 @@ function _confidenceBar(confidence) {
 }
 
 /**
+ * Heading for the actions section — honest about whether actions were taken
+ * or are being suggested, based on the action statuses present.
+ */
+function _actionsHeading(actions) {
+  const anyCompleted = (actions || []).some(a => a.status === 'completed');
+  return anyCompleted ? '🤖 *Actions Taken*' : '🤖 *Suggested Next Steps*';
+}
+
+/**
+ * Marker for an action based on its real status.
+ */
+function _actionMark(status) {
+  if (status === 'completed') return '✅';
+  if (status === 'scheduled') return '⏰';
+  return '▫️'; // suggested
+}
+
+/**
  * Turns an evidence key like "avgResponseHours" into "Avg response hours".
  */
 function _humanizeKey(key) {
@@ -125,13 +143,16 @@ function buildExecutiveSummary(summary, risks) {
     },
     { type: 'divider' },
 
-    // ── RESPONSE INITIATED (agent acted) ──
+    // ── SUGGESTED / TAKEN ACTIONS ──
+    // Render honestly based on each action's status. On real workspace data
+    // these are suggestions (PulseGuard does not auto-execute actions). The
+    // demo dataset includes illustrative "completed" actions.
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `🤖 *Response Initiated*\n` +
-          actions.slice(0, 3).map(a => `${a.icon} ✅ ${a.action}`).join('\n'),
+        text: `${_actionsHeading(actions)}\n` +
+          actions.slice(0, 4).map(a => `${a.icon} ${_actionMark(a.status)} ${a.action}${a.detail ? ` — _${a.detail}_` : ''}`).join('\n'),
       },
     },
     { type: 'divider' },
