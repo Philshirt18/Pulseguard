@@ -301,13 +301,39 @@ function registerCommands(app) {
       return;
     }
 
-    // Accept and close the modal
-    await ack();
-
+    // Save the dataset first — this is the operation that matters.
+    let saved;
     try {
-      const saved = await dataStore.saveDataset(workspaceId, result.dataset, { uploadedBy: userId, source: result.source });
+      saved = await dataStore.saveDataset(workspaceId, result.dataset, { uploadedBy: userId, source: result.source });
       logger.info('Workspace data loaded via modal', { workspaceId, source: result.source, counts: saved.counts });
+    } catch (error) {
+      logger.error('Modal data save failed', { workspaceId, error: error.message });
+      // Surface the failure inside the modal so the user knows it didn't save
+      await ack({
+        response_action: 'errors',
+        errors: { data_block: 'Could not save your data. Please try again.' },
+      });
+      return;
+    }
 
+    // Data saved — close the modal and show a confirmation
+    await ack({
+      response_action: 'update',
+      view: {
+        type: 'modal',
+        title: { type: 'plain_text', text: 'Data Loaded' },
+        close: { type: 'plain_text', text: 'Done' },
+        blocks: blocks.buildUploadResult({
+          ok: true,
+          counts: saved.counts,
+          warnings: result.warnings,
+          source: result.source,
+        }),
+      },
+    });
+
+    // Best-effort DM confirmation (ignored if messages tab is disabled)
+    try {
       const dm = await _openDm(client, userId);
       await _dm(client, dm, blocks.buildUploadResult({
         ok: true,
@@ -315,13 +341,7 @@ function registerCommands(app) {
         warnings: result.warnings,
         source: result.source,
       }));
-    } catch (error) {
-      logger.error('Modal data save failed', { workspaceId, error: error.message });
-      try {
-        const dm = await _openDm(client, userId);
-        await _dm(client, dm, blocks.buildErrorMessage('Something went wrong saving your data. Please try again.'));
-      } catch { /* best effort */ }
-    }
+    } catch { /* best effort — the modal already confirmed success */ }
   });
 
   // /pulseguard-data — show what data is currently loaded for this workspace
