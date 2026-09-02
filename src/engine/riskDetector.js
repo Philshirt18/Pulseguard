@@ -1,21 +1,52 @@
 /**
  * PulseGuard AI - Risk Detection Engine
- * 
+ *
  * DETERMINISTIC risk detection using:
  * - Trend Detection
  * - Spike Detection
  * - Threshold Analysis
  * - Correlation Analysis
  * - Pattern Matching
- * 
+ *
  * NO AI used for scoring or detection.
+ *
+ * ── Data injection ───────────────────────────────────────────────────────────
+ * The engine operates on a dataset with this shape:
+ *   { regions, vendors, owners, supportTickets, reviews,
+ *     maintenanceIncidents, bookings, baselines }
+ *
+ * A dataset can come from:
+ *   - A workspace's uploaded CSV/JSON (multi-tenant production use)
+ *   - The bundled demo dataset (sample / onboarding / review)
+ *
+ * Usage:
+ *   const { RiskDetector, createDetector } = require('./riskDetector');
+ *   const detector = createDetector(workspaceDataset);   // per-workspace
+ *   const risks = detector.analyzeAll();
+ *
+ * Backward compatibility:
+ *   This module also exports a default singleton bound to the demo dataset,
+ *   so existing callers using `riskDetector.analyzeAll()` continue to work.
  */
 
-const { regions, vendors, owners, supportTickets, reviews, maintenanceIncidents, bookings, baselines } = require('../data/mockData');
+const demoData = require('../data/mockData');
 
 class RiskDetector {
-  constructor() {
+  /**
+   * @param {object} [dataset] - operational dataset; defaults to demo data
+   */
+  constructor(dataset) {
+    this.data = dataset || demoData;
     this.risks = [];
+  }
+
+  /**
+   * Replace the dataset this detector operates on and clear cached risks.
+   */
+  setDataset(dataset) {
+    this.data = dataset || demoData;
+    this.risks = [];
+    return this;
   }
 
   analyzeAll() {
@@ -24,36 +55,32 @@ class RiskDetector {
     this.detectRevenueRisks();
     this.detectOperationalRisks();
     this.detectOwnerChurnRisks();
-    // Sort by severity score descending
     this.risks.sort((a, b) => b.severityScore - a.severityScore);
     return this.risks;
   }
 
   detectCustomerSatisfactionRisks() {
+    const { regions, supportTickets, reviews, baselines } = this.data;
     for (const region of regions) {
       const regionTickets = supportTickets.filter(t => t.regionId === region.id);
       const complaints = regionTickets.filter(t => t.category === 'complaint');
       const regionReviews = reviews.filter(r => r.regionId === region.id);
-      
-      // Spike detection: complaints vs baseline
+
       const complaintRatio = complaints.length / baselines.avgComplaintsPerRegion;
-      
-      // Trend detection: recent reviews vs average
+
       const recentReviews = regionReviews.filter(r => r.daysAgo <= 7);
       const olderReviews = regionReviews.filter(r => r.daysAgo > 7);
-      const recentAvg = recentReviews.length > 0 
-        ? recentReviews.reduce((sum, r) => sum + r.rating, 0) / recentReviews.length 
+      const recentAvg = recentReviews.length > 0
+        ? recentReviews.reduce((sum, r) => sum + r.rating, 0) / recentReviews.length
         : baselines.avgReviewRating;
-      const olderAvg = olderReviews.length > 0 
-        ? olderReviews.reduce((sum, r) => sum + r.rating, 0) / olderReviews.length 
+      const olderAvg = olderReviews.length > 0
+        ? olderReviews.reduce((sum, r) => sum + r.rating, 0) / olderReviews.length
         : baselines.avgReviewRating;
       const ratingTrend = recentAvg - olderAvg;
 
-      // Negative review percentage
       const negativeReviews = regionReviews.filter(r => r.sentiment === 'negative');
       const negativeRate = negativeReviews.length / Math.max(regionReviews.length, 1);
 
-      // Combined risk score
       const riskScore = (complaintRatio * 30) + (Math.abs(Math.min(ratingTrend, 0)) * 20) + (negativeRate * 50);
 
       if (riskScore > 40) {
@@ -88,14 +115,12 @@ class RiskDetector {
   }
 
   detectRevenueRisks() {
+    const { regions, bookings, baselines } = this.data;
     for (const booking of bookings) {
       const region = regions.find(r => r.id === booking.regionId);
-      
-      // Threshold analysis: cancellation rate vs baseline
+      if (!region) continue;
+
       const cancellationExcess = booking.cancellationRate / baselines.avgCancellationRate;
-      
-      // Revenue impact calculation
-      const avgBookingValue = booking.refundTotal / Math.max(booking.cancellations, 1);
       const projectedMonthlyLoss = booking.refundTotal * (booking.trend === 'increasing' ? 1.3 : 1.0);
 
       const riskScore = (cancellationExcess * 25) + (booking.refundTotal / 10000);
@@ -133,25 +158,24 @@ class RiskDetector {
   }
 
   detectOperationalRisks() {
+    const { regions, vendors, supportTickets, maintenanceIncidents, baselines } = this.data;
     for (const vendor of vendors) {
       const incidents = maintenanceIncidents.filter(m => m.vendorId === vendor.id);
-      
-      // Performance analysis
-      const avgResponse = incidents.length > 0 
-        ? incidents.reduce((sum, m) => sum + m.responseHours, 0) / incidents.length 
+
+      const avgResponse = incidents.length > 0
+        ? incidents.reduce((sum, m) => sum + m.responseHours, 0) / incidents.length
         : 0;
-      const completionRate = incidents.length > 0 
-        ? incidents.filter(m => m.completed).length / incidents.length 
+      const completionRate = incidents.length > 0
+        ? incidents.filter(m => m.completed).length / incidents.length
         : 1;
-      const escalationRate = incidents.length > 0 
-        ? incidents.filter(m => m.escalated).length / incidents.length 
+      const escalationRate = incidents.length > 0
+        ? incidents.filter(m => m.escalated).length / incidents.length
         : 0;
 
-      // Correlation: link vendor performance to region complaints
       const region = regions.find(r => r.id === vendor.region);
+      if (!region) continue;
       const regionComplaints = supportTickets.filter(t => t.regionId === vendor.region && t.category === 'complaint');
 
-      // Risk scoring
       const responseExcess = avgResponse / baselines.avgMaintenanceResponseHours;
       const completionDeficit = baselines.avgVendorCompletionRate - completionRate;
       const riskScore = (responseExcess * 20) + (completionDeficit * 80) + (escalationRate * 60);
@@ -171,7 +195,7 @@ class RiskDetector {
             avgResponseDelay: `${Math.round(avgResponse)}h (baseline: ${baselines.avgMaintenanceResponseHours}h)`,
             completionRate: `${Math.round(completionRate * 100)}%`,
             escalations: incidents.filter(m => m.escalated).length,
-            contractValue: `€${vendor.contractValue.toLocaleString()}`,
+            contractValue: `€${(vendor.contractValue || 0).toLocaleString()}`,
             estimatedGuestImpact: Math.round(incidents.length * 2.5),
           },
           evidence: {
@@ -197,12 +221,12 @@ class RiskDetector {
   }
 
   detectOwnerChurnRisks() {
+    const { regions, owners, baselines } = this.data;
     for (const owner of owners) {
-      // Threshold analysis
       const satisfactionDeficit = baselines.avgOwnerSatisfaction - owner.satisfaction;
-      const escalationRate = owner.escalations / (owner.tenure.split(' ')[0] * 12); // per month
+      const tenureYears = parseInt(String(owner.tenure).split(' ')[0], 10) || 1;
+      const escalationRate = owner.escalations / (tenureYears * 12);
 
-      // Risk scoring
       const riskScore = (satisfactionDeficit * 30) + (owner.escalations * 8) + (escalationRate * 100);
 
       if (riskScore > 25) {
@@ -212,15 +236,15 @@ class RiskDetector {
           id: `risk-churn-${owner.id}`,
           type: 'owner_churn',
           title: `Owner Churn Risk: ${owner.name}`,
-          region: region.name,
+          region: region ? region.name : owner.region,
           severity,
           severityScore: riskScore,
           confidence: Math.min(0.90, 0.5 + (riskScore / 150)),
           impact: {
-            ownerRevenue: `€${owner.revenue.toLocaleString()}`,
+            ownerRevenue: `€${(owner.revenue || 0).toLocaleString()}`,
             properties: owner.properties,
             tenure: owner.tenure,
-            revenueAtRisk: `€${Math.round(owner.revenue * 0.8).toLocaleString()}`,
+            revenueAtRisk: `€${Math.round((owner.revenue || 0) * 0.8).toLocaleString()}`,
           },
           evidence: {
             owner: owner.name,
@@ -264,4 +288,19 @@ class RiskDetector {
   }
 }
 
-module.exports = new RiskDetector();
+/**
+ * Factory: create a detector bound to a specific dataset.
+ * @param {object} dataset
+ * @returns {RiskDetector}
+ */
+function createDetector(dataset) {
+  return new RiskDetector(dataset);
+}
+
+// Default singleton bound to demo data — preserves the existing interface
+// used by api/slack.js, commands.js, MCP tools, and existing tests.
+const defaultDetector = new RiskDetector(demoData);
+
+module.exports = defaultDetector;
+module.exports.RiskDetector = RiskDetector;
+module.exports.createDetector = createDetector;

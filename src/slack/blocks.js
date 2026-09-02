@@ -482,6 +482,144 @@ function buildProactiveAlert(risk) {
 }
 
 // ==========================================
+// DATA UPLOAD
+// ==========================================
+
+/**
+ * Instructions shown by /pulseguard-upload.
+ */
+function buildUploadInstructions() {
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: '📥 Upload Your Operational Data', emoji: true },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: 'PulseGuard analyzes *your* data to detect operational risks. To get started, share a *CSV* or *JSON* file in a direct message with me, or in any channel I\'m in.',
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*JSON format* — an object with entity arrays:\n```{\n  "regions": [{ "id": "r1", "name": "North Region", "properties": 100 }],\n  "vendors": [{ "id": "v1", "name": "Acme Co", "region": "r1", "rating": 2.1 }],\n  "supportTickets": [{ "regionId": "r1", "category": "complaint", "daysAgo": 3 }],\n  "reviews": [{ "regionId": "r1", "rating": 2.4, "daysAgo": 5 }],\n  "bookings": [{ "regionId": "r1", "totalBookings": 500, "cancellations": 90 }]\n}```',
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*CSV format* — one file with an `entity` column identifying each row:\n```entity,id,name,region,regionId,category,rating,daysAgo\nregion,r1,North Region,,,,,\nvendor,v1,Acme Co,r1,,,,\nticket,,,,r1,complaint,,3\nreview,,,,r1,,2.4,5```',
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*Required:* at least one `region`, plus at least one signal source (`ticket`, `review`, `maintenance`, or `booking`).\n\nOnce uploaded, run `/executive-summary` to see risks detected in your data. Use `/pulseguard-data` to check what\'s loaded.',
+      },
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: 'Max file size 2 MB. Your data is stored securely and isolated to your workspace.' }],
+    },
+  ];
+}
+
+/**
+ * Status shown by /pulseguard-data.
+ * @param {object|null} info - from dataStore.getDatasetInfo, or null
+ */
+function buildDataStatus(info) {
+  if (!info) {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '📊 *No data uploaded yet.*\n\nPulseGuard is currently using its *sample dataset*. Upload your own CSV or JSON with `/pulseguard-upload` to analyze your operations.',
+        },
+      },
+    ];
+  }
+
+  const c = info.counts || {};
+  const uploaded = new Date(info.uploadedAt).toLocaleString();
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: '📊 Your Loaded Data', emoji: true },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Uploaded:* ${uploaded}\n*Format:* ${(info.source || 'unknown').toUpperCase()}\n\n*Regions:* ${c.regions || 0}\n*Vendors:* ${c.vendors || 0}\n*Owners:* ${c.owners || 0}\n*Support tickets:* ${c.supportTickets || 0}\n*Reviews:* ${c.reviews || 0}\n*Maintenance incidents:* ${c.maintenanceIncidents || 0}\n*Bookings:* ${c.bookings || 0}`,
+      },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Reset to sample data', emoji: true },
+          style: 'danger',
+          action_id: 'reset_to_demo',
+          confirm: {
+            title: { type: 'plain_text', text: 'Reset data?' },
+            text: { type: 'mrkdwn', text: 'This removes your uploaded data and reverts PulseGuard to the sample dataset. You can upload again anytime.' },
+            confirm: { type: 'plain_text', text: 'Reset' },
+            deny: { type: 'plain_text', text: 'Cancel' },
+          },
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * Result message after a file upload attempt.
+ * @param {object} params - { ok, counts?, errors?, warnings?, source? }
+ */
+function buildUploadResult({ ok, counts = {}, errors = [], warnings = [], source }) {
+  if (!ok) {
+    const errorList = errors.map(e => `• ${e}`).join('\n');
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `⚠️ *Upload failed — your data was not saved.*\n\n${errorList}\n\nFix the issues and share the file again. Run \`/pulseguard-upload\` to see the expected format.`,
+        },
+      },
+    ];
+  }
+
+  const total = Object.values(counts).reduce((s, n) => s + (n || 0), 0);
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `✅ *Data uploaded successfully* (${(source || '').toUpperCase()})\n\nLoaded ${total} records across ${Object.keys(counts).filter(k => counts[k] > 0).length} entity types:\n*Regions:* ${counts.regions || 0} · *Vendors:* ${counts.vendors || 0} · *Owners:* ${counts.owners || 0}\n*Tickets:* ${counts.supportTickets || 0} · *Reviews:* ${counts.reviews || 0} · *Maintenance:* ${counts.maintenanceIncidents || 0} · *Bookings:* ${counts.bookings || 0}\n\nRun \`/executive-summary\` to analyze your data.`,
+      },
+    },
+  ];
+
+  if (warnings.length) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `⚠️ ${warnings.length} warning(s): ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? '…' : ''}` }],
+    });
+  }
+
+  return blocks;
+}
+
+// ==========================================
 // APPROVAL FLOW
 // High-impact actions require explicit human approval before being logged.
 // The AI recommends — a human confirms.
@@ -580,4 +718,7 @@ module.exports = {
   buildErrorMessage,
   buildApprovalRequest,
   buildApprovalConfirmed,
+  buildUploadInstructions,
+  buildDataStatus,
+  buildUploadResult,
 };

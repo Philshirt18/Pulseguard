@@ -46,6 +46,18 @@
         "url": "https://pulseguard-2j5l.vercel.app/api/slack",
         "description": "Quick risk status check",
         "should_escape": false
+      },
+      {
+        "command": "/pulseguard-upload",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
+        "description": "How to upload your own operational data (CSV or JSON)",
+        "should_escape": false
+      },
+      {
+        "command": "/pulseguard-data",
+        "url": "https://pulseguard-2j5l.vercel.app/api/slack",
+        "description": "See what data is loaded and manage it",
+        "should_escape": false
       }
     ]
   },
@@ -57,7 +69,9 @@
       "bot": [
         "commands",
         "chat:write",
-        "chat:write.public"
+        "chat:write.public",
+        "files:read",
+        "im:write"
       ]
     }
   },
@@ -65,7 +79,8 @@
     "event_subscriptions": {
       "request_url": "https://pulseguard-2j5l.vercel.app/api/slack",
       "bot_events": [
-        "app_home_opened"
+        "app_home_opened",
+        "file_shared"
       ]
     },
     "interactivity": {
