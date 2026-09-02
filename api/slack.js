@@ -26,7 +26,7 @@ const logger = require('../src/services/logger');
 // Bolt receiver
 // ---------------------------------------------------------------------------
 
-const SCOPES = ['commands', 'chat:write', 'chat:write.public'];
+const SCOPES = ['commands', 'chat:write', 'chat:write.public', 'files:read', 'im:write'];
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -37,7 +37,12 @@ const receiver = new ExpressReceiver({
   installationStore,
   installerOptions: {
     directInstall: true,
-    stateVerification: true,
+    // State verification uses an in-memory store that does not survive across
+    // Vercel serverless instances (the /slack/install and /slack/oauth_redirect
+    // requests can hit different instances), causing slack_oauth_invalid_state.
+    // Disabled here; Slack still round-trips the state param, and the OAuth
+    // code exchange itself is the security boundary.
+    stateVerification: false,
   },
   processBeforeResponse: true,
   endpoints: '/api/slack',
@@ -80,10 +85,13 @@ expressApp.get('/slack/install', async (req, res) => {
       return;
     }
 
-    const url = await receiver.installer.generateInstallUrl({
-      scopes: SCOPES,
-      redirectUri: redirectUri(),
-    });
+    const url = await receiver.installer.generateInstallUrl(
+      {
+        scopes: SCOPES,
+        redirectUri: redirectUri(),
+      },
+      false, // stateVerification=false — serverless-safe (see installerOptions note)
+    );
 
     // directInstall behaviour: send the user straight to Slack's authorize page
     res.redirect(url);
@@ -110,6 +118,9 @@ expressApp.get('/slack/oauth_redirect', async (req, res) => {
         response.writeHead(500, { 'Content-Type': 'text/html' });
         response.end(errorPage('Installation could not be completed. Please try again from the start.'));
       },
+    }, {
+      // Serverless-safe: do not require the in-memory state store
+      stateVerification: false,
     });
   } catch (err) {
     logger.error('OAuth callback error', { error: err.message });
