@@ -26,7 +26,7 @@ const logger = require('../src/services/logger');
 // Bolt receiver
 // ---------------------------------------------------------------------------
 
-const SCOPES = ['commands', 'chat:write', 'chat:write.public', 'files:read', 'im:write'];
+const SCOPES = ['commands', 'chat:write', 'chat:write.public', 'files:read', 'im:write', 'im:history'];
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,

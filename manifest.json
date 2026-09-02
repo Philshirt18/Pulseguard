@@ -71,7 +71,8 @@
         "chat:write",
         "chat:write.public",
         "files:read",
-        "im:write"
+        "im:write",
+        "im:history"
       ]
     }
   },
@@ -80,7 +81,8 @@
       "request_url": "https://pulseguard-2j5l.vercel.app/api/slack",
       "bot_events": [
         "app_home_opened",
-        "file_shared"
+        "file_shared",
+        "message.im"
       ]
     },
     "interactivity": {

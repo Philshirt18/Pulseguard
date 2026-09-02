@@ -424,59 +424,92 @@ function registerCommands(app) {
   // When a user shares a .csv or .json file with PulseGuard, we download it,
   // parse + validate it, and store it as this workspace's dataset.
 
+  // file_shared — fires when a file is shared in a channel the bot is in
   app.event('file_shared', async ({ event, client, context: botContext }) => {
     const workspaceId = botContext?.teamId || event?.team_id || process.env.SLACK_TEAM_ID || 'unknown';
     const userId = event?.user_id || 'unknown';
     const fileId = event?.file_id || event?.file?.id;
+    const botToken = botContext?.botToken || client.token;
+    logger.info('file_shared event received', { workspaceId, hasFileId: !!fileId });
     if (!fileId) return;
+    await _processUploadedFile({ client, botToken, workspaceId, userId, fileId });
+  });
 
-    try {
-      // Fetch file metadata
-      const info = await client.files.info({ file: fileId });
-      const file = info.file;
-      if (!file) return;
+  // message (DM) with files — fires reliably for direct-message uploads,
+  // which file_shared does not always cover
+  app.event('message', async ({ event, client, context: botContext }) => {
+    // Only handle DM messages that carry files
+    if (event?.channel_type !== 'im') return;
+    if (!Array.isArray(event.files) || event.files.length === 0) return;
 
-      const name = (file.name || '').toLowerCase();
-      const isSupported = name.endsWith('.csv') || name.endsWith('.json');
-      if (!isSupported) {
-        // Not a data file — ignore silently (users share many file types)
-        return;
+    const workspaceId = botContext?.teamId || event?.team || process.env.SLACK_TEAM_ID || 'unknown';
+    const userId = event?.user || 'unknown';
+    const botToken = botContext?.botToken || client.token;
+
+    logger.info('message-with-file event received', { workspaceId, fileCount: event.files.length });
+
+    // Process the first supported file
+    for (const f of event.files) {
+      const fileId = f.id;
+      if (fileId) {
+        await _processUploadedFile({ client, botToken, workspaceId, userId, fileId, file: f });
+        break;
       }
-
-      const dmChannel = await _openDm(client, userId);
-
-      // Download the private file content using the bot token
-      const content = await _downloadSlackFile(file.url_private_download || file.url_private, botContext.botToken);
-      if (content === null) {
-        await _dm(client, dmChannel, blocks.buildErrorMessage('I could not download that file. Please try uploading it again.'));
-        return;
-      }
-
-      // Parse + validate
-      const result = parseUpload(content, name);
-      if (!result.ok) {
-        await _dm(client, dmChannel, blocks.buildUploadResult({ ok: false, errors: result.errors, warnings: result.warnings }));
-        return;
-      }
-
-      // Store per-workspace
-      const saved = await dataStore.saveDataset(workspaceId, result.dataset, { uploadedBy: userId, source: result.source });
-      logger.info('Workspace data uploaded', { workspaceId, source: result.source, counts: saved.counts });
-
-      await _dm(client, dmChannel, blocks.buildUploadResult({
-        ok: true,
-        counts: saved.counts,
-        warnings: result.warnings,
-        source: result.source,
-      }));
-    } catch (error) {
-      logger.error('File upload handling failed', { workspaceId, error: error.message });
-      try {
-        const dmChannel = await _openDm(client, userId);
-        await _dm(client, dmChannel, blocks.buildErrorMessage('Something went wrong processing your file. Please try again.'));
-      } catch { /* best effort */ }
     }
   });
+}
+
+/**
+ * Downloads, parses, validates, and stores an uploaded Slack file.
+ * Shared by both the file_shared and message(DM) event handlers.
+ */
+async function _processUploadedFile({ client, botToken, workspaceId, userId, fileId, file }) {
+  try {
+    // Use provided file object or fetch metadata
+    let meta = file;
+    if (!meta) {
+      const info = await client.files.info({ file: fileId });
+      meta = info.file;
+    }
+    if (!meta) return;
+
+    const name = (meta.name || '').toLowerCase();
+    const isSupported = name.endsWith('.csv') || name.endsWith('.json');
+    if (!isSupported) {
+      logger.info('Ignoring unsupported file type', { workspaceId, name });
+      return; // not a data file
+    }
+
+    const dmChannel = await _openDm(client, userId);
+
+    const content = await _downloadSlackFile(meta.url_private_download || meta.url_private, botToken);
+    if (content === null) {
+      await _dm(client, dmChannel, blocks.buildErrorMessage('I could not download that file. Please try uploading it again.'));
+      return;
+    }
+
+    const result = parseUpload(content, name);
+    if (!result.ok) {
+      await _dm(client, dmChannel, blocks.buildUploadResult({ ok: false, errors: result.errors, warnings: result.warnings }));
+      return;
+    }
+
+    const saved = await dataStore.saveDataset(workspaceId, result.dataset, { uploadedBy: userId, source: result.source });
+    logger.info('Workspace data uploaded', { workspaceId, source: result.source, counts: saved.counts });
+
+    await _dm(client, dmChannel, blocks.buildUploadResult({
+      ok: true,
+      counts: saved.counts,
+      warnings: result.warnings,
+      source: result.source,
+    }));
+  } catch (error) {
+    logger.error('File upload handling failed', { workspaceId, error: error.message });
+    try {
+      const dmChannel = await _openDm(client, userId);
+      await _dm(client, dmChannel, blocks.buildErrorMessage('Something went wrong processing your file. Please try again.'));
+    } catch { /* best effort */ }
+  }
 }
 
 // ---------------------------------------------------------------------------
