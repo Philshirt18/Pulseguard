@@ -8,6 +8,7 @@
  */
 
 const {
+  _isDemoRisk,
   getInvestigationTimeline,
   getForecast,
   getAutonomousActions,
@@ -165,7 +166,9 @@ function buildExecutiveSummary(summary, risks) {
     { type: 'divider' },
     {
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `🛡️ _PulseGuard identified this operational crisis 21 days before executive escalation. No team reported it — PulseGuard connected signals no one had linked together._` }],
+      elements: [{ type: 'mrkdwn', text: topRisk && _isDemoRisk(topRisk)
+        ? `🛡️ _In this scenario, PulseGuard connected signals across regions 21 days before they would surface as an executive escalation._`
+        : `🛡️ _PulseGuard analyzed your data and surfaced ${risks.length} correlated risk${risks.length !== 1 ? 's' : ''} ranked by severity. Investigate any risk for root-cause analysis._` }],
     },
   ];
 

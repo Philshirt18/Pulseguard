@@ -1032,6 +1032,7 @@ function getEvidenceWeighting(risk) {
 }
 
 module.exports = {
+  _isDemoRisk,
   getInvestigationTimeline,
   getForecast,
   getAutonomousActions,
