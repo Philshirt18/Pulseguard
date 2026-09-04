@@ -1,273 +1,225 @@
 # PulseGuard AI
 
-An AI-powered operational risk intelligence system for Slack. Detects business risks before they become crises — by correlating signals across data sources that no human is connecting.
+**An operational risk intelligence assistant that lives inside Slack.**
+
+PulseGuard analyzes the operational data a team provides, correlates signals across it, and helps teams catch emerging risks earlier — surfacing likely root causes and recommended next steps directly in Slack, with a human always in the loop.
+
+🔗 **Portfolio page:** [fusionwebapps.com/apps/pulseguard](https://www.fusionwebapps.com/apps/pulseguard)
+🟢 **Install (public distribution):** `https://pulseguard-2j5l.vercel.app/slack/install`
+
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
+![Slack](https://img.shields.io/badge/Slack-Bolt-4A154B?logo=slack&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?logo=openai&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Server-000000)
+![Vercel](https://img.shields.io/badge/Vercel-Serverless-000000?logo=vercel&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-180%20passing-brightgreen)
 
 ---
 
-## What It Does
+## What it is
 
-Most monitoring tools alert you to things you already knew to watch. PulseGuard finds the problems you didn't know to look for.
+Most monitoring tools tell you a metric crossed a line you already knew to watch. PulseGuard is built for the harder problem: surfacing risks that are only visible when you connect signals scattered across different systems — a vendor's response times slipping, complaints clustering in one region, cancellations rising — before they compound into something bigger.
 
-It runs a deterministic risk detection engine across operational data — support tickets, reviews, vendor performance, bookings, owner satisfaction — and surfaces patterns that span multiple systems. When it finds something, it uses AI to explain what's happening, investigate the root cause with real data queries, and recommend specific actions with quantified business impact.
+It runs entirely inside Slack. A team loads its operational data, and PulseGuard delivers prioritized risk briefs, root-cause investigations, and recommended actions as interactive Slack messages. It **recommends**; a person decides.
 
-Everything happens inside Slack. No dashboards to check. No questions to ask first.
+> **Note:** PulseGuard analyzes the data you provide and a built-in sample dataset. It does not currently connect to third-party tools (Zendesk, Salesforce, etc.) — those are roadmap items, described as such below.
 
-**Slash commands:**
+---
 
-| Command | Description |
-|---------|-------------|
-| `/executive-summary` | Full intelligence brief with all active risks |
-| `/risk-report` | All risks ranked by severity and confidence |
-| `/why-risk [risk-id]` | Root cause analysis with investigation timeline |
-| `/recommend-action [risk-id]` | Strategic options with approval flow |
+## The problem it solves
+
+Operational crises rarely appear out of nowhere. They build over weeks, leaving a trail of weak signals across separate systems. Each looks minor alone; no single person is watching all of them together. By the time the pattern is obvious, the damage is done.
+
+PulseGuard correlates those signals programmatically and uses AI to make the connection legible — so teams can catch emerging risks earlier instead of reacting after the fact.
+
+---
+
+## How it works
+
+```
+Operational data (provided by the user)
+        │
+        ▼
+Deterministic Risk Engine ── flags spikes, negative trends, threshold breaches,
+        │                     and cross-signal correlations. No AI in scoring.
+        ▼
+   Detected risks (typed, severity-scored, with an evidence trail)
+        │
+        ▼
+AI Investigation Layer ──── explains likely root cause, attaches a confidence
+        │                   score and reasoning, recommends next steps
+        ▼
+Slack delivery ──────────── interactive briefs, reports, and investigations
+        │
+        ▼
+Human-approved action ───── high-impact recommendations surface Approve / Reject
+                            controls. The AI advises; the person decides.
+```
+
+A deliberate design choice underpins this: **AI is used for explanation and recommendation, never for the underlying risk scoring.** Detection is deterministic — statistical spike detection, trend analysis, threshold comparison, and correlation — which keeps results consistent, auditable, and free of hallucinated numbers. The LLM's job is to reason about *why* and suggest *what next*, grounded in the evidence the engine produces.
+
+---
+
+## Features
+
+- **Deterministic risk detection** across four categories: customer satisfaction, revenue, operational, and partner/owner churn
+- **AI investigation** with a tool-using agent that queries the underlying data to build an evidence-backed root-cause analysis
+- **Human-in-the-loop approvals** — high-impact recommendations require explicit Approve/Reject confirmation
+- **Bring-your-own data** — load operational data as JSON or CSV via a Slack modal; explore a built-in sample dataset until you do
+- **MCP server** — exposes PulseGuard's risk intelligence to other MCP-compatible AI tools and agents
+- **Per-workspace isolation** — each Slack workspace's data and tokens are stored separately
+- **Usage & plan limits** — AI operations are metered per workspace against configurable plan tiers
+
+### Slash commands
+
+| Command | What it does |
+|---|---|
+| `/executive-summary` | Prioritized brief of all detected risks with severity and confidence |
+| `/risk-report` | Every detected risk ranked by severity (lists risk IDs) |
+| `/why-risk [risk-id]` | Root-cause analysis with the supporting evidence for one risk |
+| `/recommend-action [risk-id]` | Recommended next steps, with Approve/Reject for high-impact actions |
 | `/pulse` | Quick status check |
+| `/pulseguard-load` | Load your own operational data (JSON or CSV) via a modal |
+| `/pulseguard-data` | View what data is loaded, or reset to the sample |
 
-High-impact recommendations include an approval step — the AI suggests, a human confirms.
+### Plans
 
----
+Configurable plan tiers meter AI usage per workspace:
 
-## Why It Exists
+| Plan | AI operations / month |
+|---|---|
+| Free | 10 |
+| Pro | 200 |
+| Business | 1,000 |
 
-The problem: operational crises almost always leave a trail of connected signals before they become visible. A vendor's completion rate drops. Guest complaints cluster around maintenance keywords. Cancellation rates tick up. Owner satisfaction scores decline. Each signal is visible in its own system — but no human connects them until the crisis is obvious.
-
-PulseGuard connects them programmatically, then uses AI to make the connection legible to executives.
+Limits are enforced **before** each AI call, so a workspace over its limit never incurs API cost. Plan values are configurable via environment variables. (Billing is architected Stripe-ready; payment processing is not wired up — it's a clean abstraction, not a live integration.)
 
 ---
 
 ## Architecture
 
-```
-Operational Data
-    ↓
-Deterministic Risk Engine         ← never uses AI, always consistent
-    - Spike detection
-    - Trend analysis
-    - Threshold comparison
-    - Cross-signal correlation
-    ↓
-Risk Objects (typed, scored, evidenced)
-    ↓
-┌──────────────────────┐    ┌─────────────────────────────┐
-│ AI Narrative Layer   │    │ AI Investigation Agent       │
-│ gpt-4o-mini          │    │ Tool-using, gpt-4o-mini       │
-│ Prose generation     │    │ Queries data, synthesises    │
-│ Billing-gated        │    │ findings autonomously        │
-└──────────┬───────────┘    └──────────────┬──────────────┘
-           │                               │
-           └──────────────┬────────────────┘
-                          ↓
-              Slack (blocks.js, commands.js)
-              MCP Server (tools.js)
-```
+PulseGuard is a Node.js application deployed as Vercel serverless functions, with a clean separation between deterministic logic, the AI layer, the Slack interface, and the MCP surface.
 
-**Key principle:** AI is used only for narrative generation and investigation — never for risk detection or scoring. Detection is deterministic, auditable, and free.
-
----
-
-## AI Architecture
-
-### Deterministic Risk Engine (`src/engine/riskDetector.js`)
-
-Detects four risk types using statistical methods:
-
-- **Customer satisfaction** — spike detection on complaint volume, trend analysis on review ratings
-- **Revenue** — threshold analysis on cancellation rates vs. historical baselines
-- **Operational** — vendor performance scoring across response time, completion rate, and escalations
-- **Owner churn** — pattern matching against historical churn profiles
-
-Each risk gets a severity score, confidence level, evidence object, and correlation list. No LLM involved.
-
-### AI Narrative Layer (`src/engine/aiNarrative.js`)
-
-Generates executive-quality prose from risk objects. Uses `gpt-4o-mini` with:
-- Workspace-scoped context (billing enforced before every call)
-- Input field whitelist + injection pattern stripping
-- 800-token hard cap per call
-- 10-minute response cache keyed by workspace + risk ID
-- High-quality fallbacks if API is unavailable
-
-### AI Investigation Agent (`src/engine/investigationAgent.js`)
-
-A real tool-using agent that investigates risks by querying operational data:
+### Folder structure
 
 ```
-Agent receives: risk summary
-    ↓
-Selects tools to call (function calling)
-    ↓
-Tools: get_risk_detail, get_vendor_metrics, get_region_complaints,
-       get_region_reviews, get_booking_cancellations, get_owner_profile,
-       compare_regions, get_baseline_comparison
-    ↓
-All inputs validated with Zod
-Tool results truncated at 3,000 chars
-Max 5 tool-call rounds
-    ↓
-Agent synthesises: root cause, key findings, evidence sources,
-                   confidence, immediate actions, business impact
+api/
+  slack.js              Vercel entry point — Slack events, OAuth install flow, /health
+  mcp.js                Vercel entry point — MCP server (stateless HTTP transport)
+src/
+  app.js                Local dev entry point (Socket Mode / HTTP)
+  engine/
+    riskDetector.js     Deterministic risk detection (dataset-injectable)
+    investigationAgent.js  Tool-using OpenAI agent for risk investigation
+    aiNarrative.js      AI narrative generation (root cause, recommendations, summary)
+    agentIntelligence.js   Deterministic display data (timelines, forecasts, evidence)
+    cache.js            In-memory response cache + demo-mode flag
+  services/
+    dataStore.js        Per-workspace dataset persistence (Upstash Redis / in-memory)
+    dataParser.js       CSV/JSON parsing + validation (no dependency; custom CSV parser)
+    usageTracker.js     Per-workspace AI usage metering
+    billingService.js   Plan/subscription abstraction (Stripe-ready)
+    inputSanitiser.js   Prompt-injection defense + input size limits
+    logger.js           Structured JSON logging (never logs secrets/tokens)
+  slack/
+    commands.js         Slash commands, buttons, modals, approval flow, data upload
+    blocks.js           Block Kit UI builders
+    installationStore.js  Per-workspace OAuth token storage (Upstash / in-memory)
+  mcp/
+    server.js           Local MCP server (Express, stateful sessions)
+    tools.js            Shared MCP tool registry (validated with Zod)
+  data/
+    mockData.js         Built-in synthetic sample dataset
+tests/                  180 tests (node:test) across engine, services, MCP, tenancy
+docs/                   Security, AI cost control, distribution, case study
 ```
 
-### MCP Server (`src/mcp/tools.js`, `api/mcp.js`)
+### Layers
 
-Exposes risk intelligence to external AI agents via the Model Context Protocol. Tools: `get_executive_summary`, `list_risks`, `get_risk`, `investigate_risk`, `calculate_business_impact`, `get_risk_history`, `get_related_events`, `generate_recommendations`, `get_forecast`.
+**Slack app layer** — Built on `@slack/bolt`. Handles slash commands, interactive buttons, modals, the App Home tab, and the OAuth v2 install flow. Deployed as a Vercel serverless function (`api/slack.js`); a Socket Mode path (`src/app.js`) exists for local development. All requests are verified via Slack's HMAC request signing.
 
-MCP endpoint: `POST https://<domain>/mcp`
+**Risk engine** (`src/engine/riskDetector.js`) — Pure, deterministic detection. Refactored to accept an injectable dataset so it can run against either a workspace's uploaded data or the sample dataset, with the two kept isolated. Produces typed risk objects with severity scores, confidence, and an evidence trail.
 
----
+**AI / LLM layer** — Two OpenAI-backed components:
+- `investigationAgent.js` — a tool-using agent (OpenAI function calling) that selects and calls data-query tools to build an evidence-backed investigation, capped at a fixed number of tool-call rounds.
+- `aiNarrative.js` — generates the executive summary, root-cause narrative, and recommendations.
 
-## Security
+Both are billing-gated (usage checked before the call), token-capped, cached, and fall back gracefully when the API is unavailable. A `DEMO_MODE` flag bypasses OpenAI entirely for zero-dependency local runs.
 
-- Slack requests verified via HMAC-SHA256 signature on every incoming request
-- OAuth state parameter validated to prevent CSRF
-- Workspace tokens stored by workspace ID — no cross-tenant access
-- Prompt injection protection: field whitelist + truncation + pattern stripping on all AI inputs
-- Tokens never logged — only workspace and user IDs appear in logs
-- All AI inputs validated and size-limited before reaching OpenAI
+**MCP server** — A Model Context Protocol server exposing PulseGuard's intelligence as tools (list risks, get a risk, investigate, calculate impact, get recommendations, forecast, etc.) to other AI agents. A shared tool registry (`src/mcp/tools.js`) is used by both the local Express server and the stateless Vercel serverless function, with every tool input validated via Zod.
 
-See [`docs/SECURITY.md`](docs/SECURITY.md) for the full security model and known limitations.
+**Data storage** — Per-workspace datasets and OAuth installations persist in Upstash Redis in production, with an in-memory fallback for local development. Storage is namespaced by workspace ID so one workspace can never read another's data or token.
 
----
+**Security** — HMAC verification on every Slack request; OAuth state (CSRF) verification handled in the install flow; secrets kept in environment variables and never logged; prompt-injection sanitisation and input size limits on all AI inputs; per-tenant isolation. See [`docs/SECURITY.md`](docs/SECURITY.md).
 
-## Multi-Tenancy
+### Data flow (a typical `/why-risk` call)
 
-Each Slack workspace has isolated:
-- Installation record (bot token)
-- Usage tracking (AI operations per month)
-- Billing subscription (FREE / PRO / BUSINESS)
-
-Token isolation is logical (keyed by workspace ID). For full physical isolation, replace the in-memory `installationStore` with a persistent database — the interface is unchanged.
-
-**Current limitation:** Risk data is shared demo data. Per-workspace data sources are on the roadmap.
+1. Slack sends the command to `api/slack.js`; Bolt verifies the request signature.
+2. The workspace's dataset is loaded from `dataStore` (or the sample dataset as fallback).
+3. `riskDetector` produces the current risk set; the requested risk is located.
+4. The usage tracker checks the workspace is within its plan limit.
+5. The AI layer investigates — sanitised inputs, token cap, cached where possible.
+6. The result is rendered as Block Kit and returned to Slack; high-impact recommendations attach Approve/Reject controls.
 
 ---
 
-## AI Cost Control
+## Tech stack
 
-| Plan | Monthly AI operations | Model |
-|------|--------------------|-------|
-| FREE | 10 | gpt-4o-mini |
-| PRO | 200 | gpt-4o-mini |
-| BUSINESS | 1,000 | gpt-4o-mini |
+Detected from the repository:
 
-Limits are enforced before every OpenAI call — over-limit workspaces never incur API charges. Plans are configurable via environment variables.
+- **Runtime:** Node.js 18+
+- **Slack:** `@slack/bolt` (Slack Bolt SDK, OAuth v2, Block Kit)
+- **AI:** `openai` (OpenAI API — GPT models, function calling)
+- **MCP:** `@modelcontextprotocol/sdk`
+- **Storage:** `@upstash/redis` (serverless Redis)
+- **Validation:** `zod`
+- **Config:** `dotenv`
+- **Testing:** Node's built-in `node:test` (180 tests) — no external test framework
+- **Deployment:** Vercel (serverless functions)
 
-Estimated cost per operation: ~$0.00012 (gpt-4o-mini, 800 tokens).
-
-See [`docs/AI_COST_CONTROL.md`](docs/AI_COST_CONTROL.md) for the full cost model.
-
----
-
-## Slack Integration
-
-OAuth v2 via `@slack/bolt` `ExpressReceiver`. Each workspace installs independently via `/slack/install`. Tokens are resolved per-request from the installation store.
-
-See [`docs/SLACK_DISTRIBUTION.md`](docs/SLACK_DISTRIBUTION.md) for the full distribution guide.
+Notably, the CSV parser and the risk engine are hand-rolled rather than pulled from libraries, keeping the dependency surface small.
 
 ---
 
-## Tech Stack
+## How it was built
 
-| Layer | Technology |
-|-------|-----------|
-| Slack integration | `@slack/bolt` v3 |
-| AI | OpenAI API (`gpt-4o-mini`) |
-| MCP | `@modelcontextprotocol/sdk` |
-| Input validation | `zod` |
-| Deployment | Vercel (serverless) |
-| Runtime | Node.js 18+ |
-| Test runner | Node.js built-in `node:test` |
+I build software as an AI-native developer — designing systems and shipping products end to end by working with AI coding agents (Claude Code, Kiro) rather than hand-writing every line. PulseGuard is a product of that workflow: I owned the architecture decisions, the product scope, the integrity constraints, and the debugging, and drove the implementation through AI agents.
+
+That approach shows up in the engineering choices here — the deterministic-vs-AI separation, per-tenant isolation, prompt-injection defense, usage metering, and a 180-test suite — and in the discipline applied when the app went through Slack's Marketplace review: auditing the app so that every figure it reports is grounded in the user's real data, sample data is clearly labeled, and the app never claims to have taken an action it didn't. The role is closer to an engineer who directs and reviews than one who types every character — and the finished system reflects that end-to-end ownership.
 
 ---
 
-## Demo
+## Screenshots
 
-The application ships with a synthetic demo dataset representing EuroStay Rentals, a fictional European vacation rental company. This data is clearly labelled as demo data and is never presented as real customer analysis.
+_Add images or a short demo clip here._
 
-Demo scenario: PulseGuard discovers that a single vendor's performance collapse in Southern Spain has triggered a cascade of guest complaints, cancellations (€234K in refunds), and imminent churn of a €890K property owner — 21 days before any human escalation.
+- Install / OAuth flow → success page
+- `/executive-summary` risk brief
+- `/why-risk` root-cause investigation
+- `/recommend-action` with Approve / Reject
+- `/pulseguard-load` data upload modal
 
-Enable demo mode: `DEMO_MODE=true` — bypasses OpenAI entirely, uses pre-written fallback narratives.
-
----
-
-## Local Development
-
-```bash
-# Clone and install
-git clone https://github.com/Philshirt18/Pulseguard.git
-cd Pulseguard
-npm install
-
-# Configure environment
-cp .env.example .env
-# Fill in: SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, SLACK_TEAM_ID
-# Set DEMO_MODE=true to skip OpenAI
-
-# Start Slack bot (Socket Mode for local dev)
-npm run start
-
-# Start MCP server (separate process)
-npm run mcp
-```
-
-For Slack slash commands to work locally, use a tunnel (e.g. `ngrok http 3000`) and update the Request URLs in your Slack app settings.
+A walkthrough video is linked from the [portfolio page](https://www.fusionwebapps.com/apps/pulseguard).
 
 ---
 
-## Deployment
+## Status & roadmap
 
-Deployed to Vercel. Push to `main` triggers automatic deployment.
+**Status:** Publicly installable via OAuth and fully functional. Went through Slack Marketplace review; a Marketplace listing additionally requires a minimum installed-workspace count, which is an adoption threshold rather than a technical one.
 
-```bash
-# Deploy manually
-vercel --prod
-```
-
-Required environment variables in Vercel dashboard:
-
-```
-SLACK_SIGNING_SECRET
-SLACK_CLIENT_ID
-SLACK_CLIENT_SECRET
-SLACK_STATE_SECRET
-SLACK_BOT_TOKEN       # optional, for backward compat
-SLACK_TEAM_ID         # optional, seeds primary workspace token
-OPENAI_API_KEY
-DEMO_MODE             # set to 'false' in production
-```
+**Roadmap:**
+- Live data connectors (Zendesk, Salesforce, HubSpot, etc.) — currently users bring their own data; connectors are future work
+- Larger-scale data ingestion beyond the paste-modal size limit
+- Historical tracking of risk scores across uploads (current analysis is point-in-time)
+- Stripe payment processing on top of the existing billing abstraction
+- Broader, industry-agnostic data schema (current model is oriented toward property-management/hospitality-style operations)
 
 ---
 
 ## Testing
 
 ```bash
-npm test
+npm test          # runs the full node:test suite (180 tests)
 ```
 
-Tests cover: risk detection engine, usage tracking, billing service, input sanitisation, MCP tool validation, and multi-tenant isolation.
-
-See [`tests/`](tests/) for the full suite.
-
----
-
-## Roadmap
-
-1. Persistent token storage (Vercel KV or Upstash Redis)
-2. Per-workspace data sources (connect real tools: Zendesk, Intercom, Stripe)
-3. MCP endpoint authentication (API key requirement)
-4. Stripe subscription integration (billing service is ready, needs Stripe connection)
-5. Rate limiting (per-workspace slash command throttling)
-6. Real-time proactive alerts (scheduled risk scanning, push to Slack)
-
----
-
-## Technical Decisions
-
-**Why Node.js?** `@slack/bolt` is the official Slack SDK and is Node-native. Vercel serverless functions in Node.js have the fastest cold-start times among the available runtimes.
-
-**Why gpt-4o-mini?** ~97% cost reduction vs GPT-4 with acceptable narrative quality. The deterministic engine handles accuracy — the AI only needs to write clearly, not reason precisely.
-
-**Why not use an LLM for risk detection?** LLMs hallucinate numbers, are expensive per call, are slow, and are non-auditable. Threshold arithmetic and trend analysis are deterministic, instant, and free.
-
-**Why MCP?** Exposes PulseGuard's intelligence to the broader AI ecosystem. Any agent with MCP support can query risk data programmatically without needing Slack.
-
-**Why Vercel?** Zero-config deployment from GitHub, serverless scaling, built-in environment variable management, and the existing project was already configured for it.
+Coverage spans the risk engine, data parsing/validation, per-workspace storage and isolation, usage metering, billing logic, MCP tool validation, and prompt-injection sanitisation.
