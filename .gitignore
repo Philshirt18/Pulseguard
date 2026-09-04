@@ -3,3 +3,6 @@ node_modules/
 .DS_Store
 .vercel
 .env*
+
+# Local screenshot originals (repo copies live in docs/screenshots)
+/Screenshots/

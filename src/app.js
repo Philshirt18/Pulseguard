@@ -1,18 +1,15 @@
 /**
- * PulseGuard AI
- * "Detect business risks before they become business problems."
- * 
- * Slack Agent Builder Challenge Entry
- * 
- * Features:
- * - Deterministic risk detection engine (no AI for scoring)
- * - AI-powered narrative generation (OpenAI for explanations)
- * - Response caching (instant repeated demos)
- * - Demo mode (DEMO_MODE=true for zero API dependency)
- * - Proactive alerts (posts to channel on startup)
- * - Interactive buttons (zero-typing demo flow)
- * - Live dashboard (App Home tab with risk counts)
- * - Beautiful Block Kit UI with trend charts
+ * PulseGuard AI — local development entry point
+ *
+ * Runs the Slack app via Socket Mode (local) or HTTP. The production
+ * deployment runs as Vercel serverless functions (see api/slack.js).
+ *
+ * Architecture:
+ * - Deterministic risk detection engine (no AI in scoring)
+ * - AI narrative + investigation layer (OpenAI, for explanation only)
+ * - Response caching and a DEMO_MODE flag for zero-dependency local runs
+ * - App Home dashboard, interactive buttons, and slash commands
+ * - Optional proactive alert posted to a channel on startup
  */
 
 require('dotenv').config();
@@ -130,22 +127,21 @@ app.event('app_home_opened', async ({ event, client }) => {
             ],
           },
           { type: 'divider' },
-          // Monitoring info
+          // Data source note
           {
             type: 'section',
             text: {
               type: 'mrkdwn',
-              text: '🏢 *Monitoring: EuroStay Rentals*\n' +
-                '• 15,000 properties across 7 European regions\n' +
-                '• 750 employees • 5 departments\n' +
-                '• Analyzing: 381 tickets, 1,095 reviews, 201 maintenance incidents',
+              text: '📊 *Data source*\n' +
+                'Load your own operational data with `/pulseguard-load`. ' +
+                'Until then, PulseGuard analyzes a built-in sample dataset (clearly labeled as sample data).',
             },
           },
           { type: 'divider' },
           {
             type: 'context',
             elements: [
-              { type: 'mrkdwn', text: `_Last updated: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} • PulseGuard AI continuously monitors operational signals_` },
+              { type: 'mrkdwn', text: `_Last updated: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} • PulseGuard AI analyzes the operational data you provide_` },
             ],
           },
         ],
@@ -201,7 +197,7 @@ async function sendProactiveAlert() {
   console.log(`  ✅ Mode: ${useSocketMode ? 'Socket Mode' : 'HTTP Mode (Vercel-compatible)'}`);
   console.log('  ✅ Risk Detection Engine: ' + risks.length + ' risks detected');
   console.log(`  ✅ AI Narrative Engine: ${isDemoMode() ? 'DEMO MODE (cached)' : 'Live (OpenAI)'}`);
-  console.log('  ✅ Monitoring: EuroStay Rentals');
+  console.log('  ✅ Data source: sample dataset (load your own with /pulseguard-load)');
   console.log('');
   if (isDemoMode()) {
     console.log('  ⚡ DEMO MODE — instant responses, zero API latency');

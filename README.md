@@ -191,13 +191,27 @@ That approach shows up in the engineering choices here — the deterministic-vs-
 
 ## Screenshots
 
-_Add images or a short demo clip here._
+> Shown with the built-in sample dataset (a fictional vacation-rental company). PulseGuard labels sample data as such in-app; once you load your own data with `/pulseguard-load`, it analyzes that instead.
 
-- Install / OAuth flow → success page
-- `/executive-summary` risk brief
-- `/why-risk` root-cause investigation
-- `/recommend-action` with Approve / Reject
-- `/pulseguard-load` data upload modal
+**Concept — scattered signals to executive intelligence**
+
+![Overview: PulseGuard correlates scattered operational signals into prioritized risk intelligence](docs/screenshots/overview.png)
+
+**Critical risk alert in Slack**
+
+![A critical risk alert card in Slack showing confidence, revenue exposure, affected properties, and intervention window](docs/screenshots/critical-risk-alert.png)
+
+**Risk report — all risks ranked by severity**
+
+![Risk report listing detected risks by severity with Investigate buttons](docs/screenshots/risk-report.png)
+
+**Investigation timeline — how confidence built over time**
+
+![Investigation timeline showing the detection sequence from first signal to confirmed root cause](docs/screenshots/investigation-timeline.png)
+
+**Recommendation detail — forecast, impact, and next steps**
+
+![Recommendation view showing projected impact without action and prioritized immediate steps with owners and timelines](docs/screenshots/recommendation-detail.png)
 
 A walkthrough video is linked from the [portfolio page](https://www.fusionwebapps.com/apps/pulseguard).
 
