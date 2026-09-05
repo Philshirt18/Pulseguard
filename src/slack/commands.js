@@ -285,6 +285,16 @@ function registerCommands(app) {
     const workspaceId = body?.team?.id || body?.user?.team_id || process.env.SLACK_TEAM_ID || 'unknown';
     const userId = body?.user?.id || 'unknown';
 
+    // Require the early-stage acknowledgment before doing anything else.
+    const ackSelected = view.state.values?.ack_block?.ack_input?.selected_options || [];
+    if (ackSelected.length === 0) {
+      await ack({
+        response_action: 'errors',
+        errors: { ack_block: 'Please acknowledge before continuing.' },
+      });
+      return;
+    }
+
     const raw = view.state.values?.data_block?.data_input?.value || '';
     const format = view.state.values?.format_block?.format_select?.selected_option?.value || 'json';
 

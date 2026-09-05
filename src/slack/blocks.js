@@ -617,6 +617,27 @@ function buildLoadDataModal() {
           max_length: 3000,
         },
       },
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [{
+          type: 'mrkdwn',
+          text: '⚠️ *Early-stage tool.* PulseGuard is a first version. Its analysis is generated automatically, may be inaccurate, and is not professional advice. You are responsible for verifying findings before acting. The author accepts no liability for decisions made using this output.',
+        }],
+      },
+      {
+        type: 'input',
+        block_id: 'ack_block',
+        label: { type: 'plain_text', text: 'Acknowledgment' },
+        element: {
+          type: 'checkboxes',
+          action_id: 'ack_input',
+          options: [{
+            text: { type: 'mrkdwn', text: 'I understand this is an early-stage tool and I am responsible for verifying its output.' },
+            value: 'acknowledged',
+          }],
+        },
+      },
     ],
   };
 }

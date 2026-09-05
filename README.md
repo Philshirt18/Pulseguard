@@ -237,3 +237,13 @@ npm test          # runs the full node:test suite (180 tests)
 ```
 
 Coverage spans the risk engine, data parsing/validation, per-workspace storage and isolation, usage metering, billing logic, MCP tool validation, and prompt-injection sanitisation.
+
+---
+
+## Disclaimer
+
+PulseGuard AI is an early-stage first version, provided "as is" and for informational purposes only. Its risk detections, root-cause analyses, forecasts, and recommendations are generated automatically and may be incomplete, inaccurate, or wrong. They are **not** professional, financial, legal, or operational advice.
+
+You are solely responsible for any decisions or actions taken based on the tool's output. Always apply human judgment and verify findings independently before acting. To the maximum extent permitted by law, the author accepts no liability for any loss, damage, or consequence arising from the use of this software.
+
+AI features rely on third-party services (e.g. OpenAI); their availability and behavior are outside the author's control.
